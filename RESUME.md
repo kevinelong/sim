@@ -90,6 +90,39 @@ Rod experiment (negative result, with controls):
 - a steady 2D perturbation only stretches dye along streamfunction contours
   (integrable), so the barrier scene looked artificial; added perturbation spin.
 
+## Tests
+
+    node --test
+
+Ten tests, stdlib only (no dependencies, no browser), about 95 s. Nine run the real
+`Solver` lifted out of `turbulence.html`; one pins the native binary.
+
+- `test/turbulence.test.mjs` extracts the solver the way this file documents - slice the
+  HTML between the section markers and evaluate it, with a small DOM stub because
+  `configure` lives in "scene setup" and `synthesize` in "plumbing", outside the solver
+  section. It pins: the power-of-two guard (96 and 192 throw, 64/128/256/512 do not), the
+  grid-size selector offering only powers of two, `forceModes` staying **empty until
+  `configure()` fills it** (the trap at the end of this file), the cascade's inverse-band
+  sign (Pi < 0 for k=1..7) with the energy peak at the forcing scale, `synthesize`'s
+  exactness (the coarse lattice comes back **bit for bit**, residual 0), the Laplacian
+  property the whole synthesis path exists for (bilinear: exactly 0 in every cell interior
+  and non-zero only on the cell boundaries; exact synthesis: uniform, ratio ~1.00), and the
+  accuracy ladder's ordering with the live default under 1%.
+- `test/rust-turb2d.test.mjs` runs `target/release/turb2d.exe --selftest 6000 128` (~45 s)
+  and pins README.md's "Verified" block: Pi < 0 for k=1..7, Pi > 0 for k >= 9, energy peak
+  at k=8. It **skips with a message** naming the build command when the binary is absent, so
+  a missing exe is visible rather than silently green.
+
+The accuracy ladder's absolute percentages are deliberately NOT asserted: they are
+convention- and frame-dependent (measured here: 2.4% / 0.7% / 0.19% / 0.00% for
+128 / 256 / 512 / 1024, against the README's 14.1 / 3.8 / 0.8 / 0.0 - a consistent ~5x,
+from the reference and the snapshot the in-browser measurement used). The order and the
+smallness of the live default are what the test holds.
+
+Each guard was falsified before it was trusted: removing the power-of-two throw,
+commenting `s.rebuildForce()` out of `configure`, forcing `synthesize`'s scale to 1, and
+flipping the flux sign each turn the matching test red.
+
 ## How to re-verify
 
 ```

@@ -85,6 +85,16 @@ cargo run --release -- --scenes 6000 128     # sanity/stability run of all six s
 cargo run --release -- --one jets 15000 96 50   # one scene, optional beta override
 ```
 
+## Test
+
+```
+node --test        # 10 tests, stdlib only, ~95 s: see RESUME.md "Tests"
+```
+
+Runs the real `Solver` lifted out of `turbulence.html` (the extraction the RESUME
+documents) plus `target/release/turb2d.exe --selftest 6000 128` when the binary is
+built - that test skips with a message naming the build command if it is not.
+
 ## Verified
 
 `--scenes 6000 128` (all finite):
