@@ -1,0 +1,1256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turbulence Lab - six 2D scenes</title>
+<style>
+  :root{
+    --panel: rgba(8,18,28,0.76);
+    --line: rgba(140,200,240,0.20);
+    --ink:#cfe6f5; --dim:#7fa2bd; --accent:#7fd0ff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#03080e;}
+  body{font:12px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;}
+  #field{position:fixed;inset:0;display:block;width:100%;height:100%;}
+
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 8px 30px rgba(0,0,0,0.45);}
+
+  #hud{top:14px;left:14px;width:302px;padding:12px 13px;max-height:calc(100vh - 130px);overflow-y:auto;}
+  #hud h1{margin:0 0 2px;font-size:13px;font-weight:600;letter-spacing:.02em;}
+  #hud h1 span{color:var(--accent);}
+  #hud .sub{color:var(--dim);font-size:11px;margin-bottom:9px;}
+
+  select{width:100%;background:rgba(127,208,255,0.08);color:var(--ink);border:1px solid var(--line);
+         border-radius:6px;padding:5px 6px;font:inherit;margin-bottom:8px;}
+  select option{background:#0a1622;color:var(--ink);}
+  #k_res{margin-bottom:0;padding:3px 4px;font-size:11px;width:100%;}
+
+  .row{display:grid;grid-template-columns:96px 1fr 44px;gap:7px;align-items:center;margin:4px 0;}
+  .row label{color:var(--dim);font-size:11px;}
+  .row output{text-align:right;font-variant-numeric:tabular-nums;color:var(--accent);font-size:11px;}
+  .row.check{grid-template-columns:16px 1fr;}
+  .row.check label{color:var(--ink);}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:rgba(140,200,240,.25);
+                    border-radius:3px;outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);}
+  input[type=range]::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent);}
+  input[type=checkbox]{accent-color:var(--accent);}
+  .hr{height:1px;background:var(--line);margin:9px 0;}
+  button{font:inherit;color:var(--ink);background:rgba(127,208,255,.10);border:1px solid var(--line);
+         border-radius:6px;padding:5px 10px;cursor:pointer;}
+  button:hover{background:rgba(127,208,255,.20);}
+  canvas.plot{display:block;width:100%;height:92px;margin:5px 0 0;border-radius:5px;background:#0b1a28;}
+
+  #stats{left:14px;bottom:14px;padding:8px 12px;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+         color:var(--dim);white-space:pre;}
+  #stats b{color:var(--ink);font-weight:500;}
+
+  #guide{top:14px;right:14px;width:392px;max-height:calc(100vh - 28px);overflow:hidden;}
+  #guide>summary{list-style:none;cursor:pointer;padding:11px 14px;font-weight:600;font-size:12px;
+                 display:flex;justify-content:space-between;align-items:center;}
+  #guide>summary::-webkit-details-marker{display:none;}
+  #guide>summary::after{content:"+";color:var(--accent);font-weight:400;}
+  #guide[open]>summary::after{content:"-";}
+  #guide .body{padding:0 14px 14px;max-height:calc(100vh - 92px);overflow-y:auto;color:var(--dim);}
+  #guide h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:13px 0 4px;font-weight:600;}
+  #guide h2:first-child{margin-top:0;}
+  #guide p{margin:0 0 8px;}
+  #guide em{color:var(--ink);font-style:normal;}
+  #guide .k{color:var(--ink);}
+  #guide a{color:var(--accent);}
+</style>
+</head>
+<body>
+<canvas id="field"></canvas>
+
+<div id="hud" class="panel">
+  <h1>Turbulence Lab <span>2D</span></h1>
+  <div class="sub">Six scenes from the sea-monkey paper. Companion to brine-shrimp.html.</div>
+  <select id="scene"></select>
+  <select id="preset"></select>
+  <div id="knobs"></div>
+  <div class="hr"></div>
+  <div id="shared"></div>
+  <div style="display:flex;gap:8px;margin-top:8px;">
+    <button id="pause">Pause</button>
+    <button id="reset">Restart scene</button>
+    <button id="save">Save PNG</button>
+  </div>
+  <div class="hr"></div>
+  <label style="color:var(--dim);font-size:11px;">energy flux Pi(k), time-averaged - sign is the point</label>
+  <canvas id="plotFlux" class="plot"></canvas>
+  <label style="color:var(--dim);font-size:11px;">energy spectrum E(k), time-averaged</label>
+  <canvas id="plotE" class="plot"></canvas>
+</div>
+
+<div id="stats" class="panel"></div>
+
+<details id="guide" class="panel" open>
+  <summary id="guideTitle">Field guide</summary>
+  <div class="body" id="guideBody"></div>
+</details>
+
+<script>
+"use strict";
+(function () {
+
+// ------------------------------------------------------------------ colormaps
+// Diverging maps with a DARK neutral: zero vorticity recedes into the dark
+// theme and structure pops. Both poles must be bright, otherwise small and
+// large |w| would both render dark and the magnitude ordering is lost.
+const VSTOPS = [[0.00,[130,225,255]],[0.20,[45,135,235]],[0.36,[14,60,140]],
+                [0.50,[3,5,12]],
+                [0.64,[145,45,12]],[0.80,[245,125,25]],[1.00,[255,220,130]]];
+const DSTOPS = [[0.00,[35,85,195]],[0.30,[45,145,190]],[0.52,[95,155,150]],
+                [0.72,[195,180,105]],[1.00,[255,240,175]]];
+function lerpStops(stops, t) {
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  for (let i = 0; i + 1 < stops.length; i++) {
+    const a = stops[i][0], ca = stops[i][1], b = stops[i + 1][0], cb = stops[i + 1][1];
+    if (t <= b) {
+      const f = (t - a) / (b - a);
+      return [(ca[0] + (cb[0] - ca[0]) * f) | 0, (ca[1] + (cb[1] - ca[1]) * f) | 0, (ca[2] + (cb[2] - ca[2]) * f) | 0];
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+// ---------------------------------------------------------------------- rng
+let rngState = 0x9e3779b9 >>> 0;
+function rnd01() { rngState = (rngState * 1664525 + 1013904223) >>> 0; return rngState / 4294967296; }
+function rndn() {
+  const u1 = Math.max(rnd01(), 1e-12), u2 = rnd01();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function rrange(a, b) { return a + (b - a) * rnd01(); }
+
+// ---------------------------------------------------------------------- fft
+function mkPlan(n) {
+  const bits = Math.log2(n) | 0;
+  const rev = new Uint32Array(n);
+  for (let i = 0; i < n; i++) { let x = i, r = 0; for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>>= 1; } rev[i] = r >>> 0; }
+  const half = Math.max(1, n >> 1);
+  const cos = new Float64Array(half), sin = new Float64Array(half);
+  for (let i = 0; i < half; i++) { const a = -2 * Math.PI * i / n; cos[i] = Math.cos(a); sin[i] = Math.sin(a); }
+  return { n, rev, cos, sin };
+}
+function fft1(re, im, off, pl, inverse) {
+  const n = pl.n, rev = pl.rev, cos = pl.cos, sin = pl.sin;
+  for (let i = 0; i < n; i++) {
+    const j = rev[i];
+    if (j > i) {
+      let t = re[off + i]; re[off + i] = re[off + j]; re[off + j] = t;
+      t = im[off + i]; im[off + i] = im[off + j]; im[off + j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1, step = n / len;
+    for (let i = 0; i < n; i += len) {
+      for (let k = 0; k < half; k++) {
+        const t = k * step, wr = cos[t], wi = inverse ? -sin[t] : sin[t];
+        const a = off + i + k, b = a + half;
+        const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+      }
+    }
+  }
+}
+function fft2(dre, dim, tre, tim, pl, inverse) {
+  const n = pl.n, nn = n * n;
+  for (let y = 0; y < n; y++) fft1(dre, dim, y * n, pl, inverse);
+  for (let y = 0; y < n; y++) { const r = y * n; for (let x = 0; x < n; x++) { tre[x * n + y] = dre[r + x]; tim[x * n + y] = dim[r + x]; } }
+  for (let y = 0; y < n; y++) fft1(tre, tim, y * n, pl, inverse);
+  for (let y = 0; y < n; y++) { const r = y * n; for (let x = 0; x < n; x++) { dre[r + x] = tre[x * n + y]; dim[r + x] = tim[x * n + y]; } }
+  if (inverse) { const inv = 1 / nn; for (let i = 0; i < nn; i++) { dre[i] *= inv; dim[i] *= inv; } }
+}
+
+// ------------------------------------------------------------------- solver
+const TAU = Math.PI * 2;
+
+class Solver {
+  constructor(n) {
+    if ((n & (n - 1)) !== 0) {
+      throw new Error("grid size must be a power of two (radix-2 FFT): got " + n);
+    }
+    this.n = n;
+    const nn = n * n;
+    this.nn = nn;
+    this.dx = TAU / n;
+    this.kx = new Float64Array(nn); this.ky = new Float64Array(nn);
+    this.k2 = new Float64Array(nn); this.kmag = new Float64Array(nn);
+    this.mask = new Uint8Array(nn);
+    const keep = (2 / 3) * (n / 2);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const i = y * n + x;
+      const a = x <= n / 2 ? x : x - n, b = y <= n / 2 ? y : y - n;
+      this.kx[i] = a; this.ky[i] = b;
+      this.kmag[i] = Math.hypot(a, b);
+      this.k2[i] = Math.max(a * a + b * b, 1e-12);
+      this.mask[i] = (Math.abs(a) > keep || Math.abs(b) > keep) ? 1 : 0;
+    }
+    this.k2[0] = 1;
+
+    const F = () => new Float64Array(nn);
+    this.sre = F(); this.sim = F();
+    this.k1re = F(); this.k1im = F();
+    this.mre = F(); this.mim = F();
+    this.k2re = F(); this.k2im = F();
+    this.wr = F(); this.wi = F(); this.tre = F(); this.tim = F();
+    this.sur = F(); this.sui = F(); this.svr = F(); this.svi = F();
+    this.u = F(); this.v = F();
+    this.dux = F(); this.duy = F(); this.dvx = F(); this.dvy = F();
+    this.nlx = F(); this.nly = F();
+    this.nlxr = F(); this.nlyi = F();
+    this.src = F(); this.om = F();
+    this.scRe = F(); this.scIm = F(); this.scPhys = F();
+    this.pl = mkPlan(n);
+
+    // physics
+    this.dt = 0.004; this.dtMax = 0.01; this.cfl = 0.5;
+    this.nu = 2e-5; this.drag = 0.05; this.dragK = 2;
+    this.kf = 8; this.forceAmp = 20;
+    this.dipoles = []; this.dipoleOn = false; this.dipoleSigma = 0.10;
+    this.swimMove = false; this.swimSpeed = 0; this.swimNoise = 0;
+    this.bandOn = false; this.bandAmp = 0; this.bandK = 1;
+    this.beta = 0;
+    this.scalarOn = false; this.kappa = 1e-4;
+    this.wobble = 0;
+    this.probe = { x: Math.PI, y: Math.PI };
+    this.t = 0; this.steps = 0; this.umax = 0;
+
+    // diagnostics
+    this.shellK = []; this.shellE = []; this.shellFlux = [];
+    this.avgK = []; this.avgE = []; this.avgFlux = [];
+    this.accE = new Float64Array(n / 2 + 2);
+    this.accTr = new Float64Array(n / 2 + 2);
+    this.nDiag = 0;
+    this.strainAxis = 0;
+    this.forceModes = [];
+    this.tmp = [0, 0];
+    this.seedField();
+  }
+
+  seedField() {
+    // deterministic, so fresh runs start from an identical perturbation and
+    // parameter sweeps are controlled
+    let st = 0x1234abcd >>> 0;
+    const r = () => { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
+    const n = this.n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const i = y * n + x, kk = this.kmag[i];
+      if (kk > 3 && kk < 20 && !this.mask[i]) {
+        this.sre[i] = (r() - 0.5) * 1e-3;
+        this.sim[i] = (r() - 0.5) * 1e-3;
+      }
+    }
+  }
+
+  rebuildForce() {
+    this.forceModes = [];
+    for (let i = 0; i < this.nn; i++) {
+      if (Math.abs(this.kmag[i] - this.kf) < 0.75 && !this.mask[i]) this.forceModes.push(i);
+    }
+  }
+
+  initScalar(width) {
+    const n = this.n, dx = this.dx;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      this.scRe[y * n + x] = Math.tanh((dx * y - Math.PI) / width);
+      this.scIm[y * n + x] = 0;
+    }
+    fft2(this.scRe, this.scIm, this.tre, this.tim, this.pl, false);
+  }
+
+  // ---- one right-hand side: -NL(src) + scene sources
+  rhs(srcRe, srcIm, dstRe, dstIm) {
+    const n = this.n, nn = this.nn;
+    const k2 = this.k2, kx = this.kx, ky = this.ky, mask = this.mask;
+    const wr = this.wr, wi = this.wi, tre = this.tre, tim = this.tim, pl = this.pl;
+    const u = this.u, v = this.v, dxw = this.dux, dyw = this.duy;
+    let i, pr, pi;
+
+    // u
+    for (i = 0; i < nn; i++) {
+      if (i === 0) { pr = 0; pi = 0; } else { const d = k2[i]; pr = srcRe[i] / d; pi = srcIm[i] / d; }
+      const b = ky[i]; wr[i] = pi * b; wi[i] = -pr * b;
+    }
+    fft2(wr, wi, tre, tim, pl, true); u.set(wr);
+    // v
+    for (i = 0; i < nn; i++) {
+      if (i === 0) { pr = 0; pi = 0; } else { const d = k2[i]; pr = srcRe[i] / d; pi = srcIm[i] / d; }
+      const a = kx[i]; wr[i] = -pi * a; wi[i] = pr * a;
+    }
+    fft2(wr, wi, tre, tim, pl, true); v.set(wr);
+    // om
+    wr.set(srcRe); wi.set(srcIm);
+    fft2(wr, wi, tre, tim, pl, true); this.om.set(wr);
+    // dx om
+    for (i = 0; i < nn; i++) { const a = kx[i]; wr[i] = -a * srcIm[i]; wi[i] = a * srcRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true); dxw.set(wr);
+    // dy om
+    for (i = 0; i < nn; i++) { const b = ky[i]; wr[i] = -b * srcIm[i]; wi[i] = b * srcRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true); dyw.set(wr);
+
+    let umax = 1e-6;
+    for (i = 0; i < nn; i++) { const s = u[i] * u[i] + v[i] * v[i]; if (s > umax) umax = s; }
+    this.umax = Math.sqrt(umax);
+
+    for (i = 0; i < nn; i++) dxw[i] = u[i] * dxw[i] + v[i] * dyw[i];
+    wr.set(dxw);
+    for (i = 0; i < nn; i++) wi[i] = 0;
+    fft2(wr, wi, tre, tim, pl, false);
+    for (i = 0; i < nn; i++) {
+      if (mask[i]) { dstRe[i] = 0; dstIm[i] = 0; } else { dstRe[i] = -wr[i]; dstIm[i] = -wi[i]; }
+    }
+
+    // ---- scene sources in physical space
+    const src = this.src;
+    src.fill(0);
+    let any = false;
+    if (this.dipoleOn && this.dipoles.length) { any = true; this.addDipoles(); }
+    if (this.bandOn && this.bandAmp !== 0) {
+      any = true;
+      const a = this.bandAmp * this.bandK, bk = this.bandK, dx = this.dx;
+      for (let y = 0; y < n; y++) {
+        const val = a * Math.sin(bk * dx * y), r = y * n;
+        for (let x = 0; x < n; x++) src[r + x] += val;
+      }
+    }
+    if (any) {
+      wr.set(src);
+      for (i = 0; i < nn; i++) wi[i] = 0;
+      fft2(wr, wi, tre, tim, pl, false);
+      for (i = 0; i < nn; i++) if (!mask[i]) { dstRe[i] += wr[i]; dstIm[i] += wi[i]; }
+    }
+  }
+
+  addDipoles() {
+    const n = this.n, dx = this.dx, src = this.src;
+    const s2 = this.dipoleSigma * this.dipoleSigma, s4i = 1 / (s2 * s2);
+    for (let d = 0; d < this.dipoles.length; d++) {
+      const dp = this.dipoles[d];
+      const nx = Math.cos(dp.th), ny = Math.sin(dp.th), amp = dp.amp;
+      for (let y = 0; y < n; y++) {
+        let eta = dx * y - dp.y;
+        if (eta > Math.PI) eta -= TAU; else if (eta < -Math.PI) eta += TAU;
+        const r0 = y * n;
+        for (let x = 0; x < n; x++) {
+          let xi = dx * x - dp.x;
+          if (xi > Math.PI) xi -= TAU; else if (xi < -Math.PI) xi += TAU;
+          const r2 = xi * xi + eta * eta;
+          if (r2 > 9 * s2) continue;
+          const g = Math.exp(-0.5 * r2 / s2);
+          const br = nx * ny * (xi * xi - eta * eta) * s4i + (ny * ny - nx * nx) * xi * eta * s4i;
+          src[r0 + x] += amp * g * br;
+        }
+      }
+    }
+  }
+
+  rossby(state, halfDt) {
+    if (!this.beta) return;
+    const nn = this.nn, kx = this.kx, k2 = this.k2;
+    for (let i = 1; i < nn; i++) {
+      const ph = -this.beta * kx[i] / k2[i] * halfDt;
+      const c = Math.cos(ph), s = Math.sin(ph);
+      const re = state[0][i], im = state[1][i];
+      state[0][i] = re * c - im * s;
+      state[1][i] = re * s + im * c;
+    }
+  }
+
+  step() {
+    if (this.steps % 4 === 0) {
+      this.dt = Math.min(this.cfl * this.dx / Math.max(this.umax, 1e-6), this.dtMax);
+      this.dt = Math.max(this.dt, 1e-5);
+    }
+    const dt = this.dt, nn = this.nn;
+    const sre = this.sre, sim = this.sim, k1re = this.k1re, k1im = this.k1im;
+    const mre = this.mre, mim = this.mim, k2re = this.k2re, k2im = this.k2im;
+    const st = [sre, sim];
+    let i;
+
+    this.rossby(st, 0.5 * dt);
+    this.rhs(sre, sim, k1re, k1im);
+    for (i = 0; i < nn; i++) { mre[i] = sre[i] + k1re[i] * dt; mim[i] = sim[i] + k1im[i] * dt; }
+    this.rhs(mre, mim, k2re, k2im);
+    for (i = 0; i < nn; i++) {
+      sre[i] += 0.5 * dt * (k1re[i] + k2re[i]);
+      sim[i] += 0.5 * dt * (k1im[i] + k2im[i]);
+    }
+    for (i = 1; i < nn; i++) { const f = Math.exp(-this.nu * this.k2[i] * dt); sre[i] *= f; sim[i] *= f; }
+    if (this.drag > 0) {
+      const f = Math.exp(-this.drag * dt), dk = this.dragK, km = this.kmag;
+      for (i = 1; i < nn; i++) if (km[i] <= dk) { sre[i] *= f; sim[i] *= f; }
+    }
+    this.rossby(st, 0.5 * dt);
+    sre[0] = 0; sim[0] = 0;
+
+    if (this.forceAmp > 0) {
+      const f0 = this.forceAmp * this.n / 2, sq = Math.sqrt(dt), fm = this.forceModes;
+      for (let j = 0; j < fm.length; j++) {
+        const idx = fm[j];
+        sre[idx] += rndn() * f0 * sq;
+        sim[idx] += rndn() * f0 * sq;
+      }
+    }
+
+    if (this.swimMove && this.dipoles.length) this.moveSwimmers(dt);
+    // A time-dependent perturbation makes the 2D advection genuinely chaotic;
+    // a steady one only stretches the dye along streamlines forever.
+    if (this.wobble && this.dipoles.length) this.dipoles[0].th += this.wobble * dt;
+    if (this.scalarOn) this.stepScalar(dt);
+
+    this.t += dt;
+    this.steps++;
+  }
+
+  moveSwimmers(dt) {
+    const n = this.n, dx = this.dx, u = this.u, v = this.v, om = this.om;
+    const speed = this.swimSpeed, noise = this.swimNoise;
+    for (let d = 0; d < this.dipoles.length; d++) {
+      const dp = this.dipoles[d];
+      const fx = dp.x / dx, fy = dp.y / dx;
+      const x0 = Math.floor(fx) % n, y0 = Math.floor(fy) % n;
+      const x1 = (x0 + 1) % n, y1 = (y0 + 1) % n;
+      const tx = fx - Math.floor(fx), ty = fy - Math.floor(fy);
+      const bl = (g, a, b, c, e) => g[y0 * n + x0] * (1 - a) * (1 - b) + g[y0 * n + x1] * a * (1 - b) + g[y1 * n + x0] * (1 - a) * b + g[y1 * n + x1] * a * b;
+      const uu = bl(u, tx, ty), vv = bl(v, tx, ty), ww = bl(om, tx, ty);
+      dp.th += (0.5 * ww + rndn() * noise) * dt;
+      dp.x = (dp.x + (uu + speed * Math.cos(dp.th)) * dt) % TAU;
+      dp.y = (dp.y + (vv + speed * Math.sin(dp.th)) * dt) % TAU;
+      if (dp.x < 0) dp.x += TAU;
+      if (dp.y < 0) dp.y += TAU;
+    }
+  }
+
+  stepScalar(dt) {
+    const nn = this.nn, n = this.n, pl = this.pl;
+    const scRe = this.scRe, scIm = this.scIm, wr = this.wr, wi = this.wi, tre = this.tre, tim = this.tim;
+    const u = this.u, v = this.v, kx = this.kx, ky = this.ky, k2 = this.k2;
+    const ph = this.scPhys;
+    let i;
+    wr.set(scRe); wi.set(scIm);
+    fft2(wr, wi, tre, tim, pl, true); ph.set(wr);
+    // dx c, dy c (store in dux/duy)
+    for (i = 0; i < nn; i++) { const a = kx[i]; wr[i] = -a * scIm[i]; wi[i] = a * scRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true); this.dux.set(wr);
+    for (i = 0; i < nn; i++) { const b = ky[i]; wr[i] = -b * scIm[i]; wi[i] = b * scRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true); this.duy.set(wr);
+    for (i = 0; i < nn; i++) wr[i] = u[i] * this.dux[i] + v[i] * this.duy[i];
+    for (i = 0; i < nn; i++) wi[i] = 0;
+    fft2(wr, wi, tre, tim, pl, false);
+    for (i = 0; i < nn; i++) {
+      // 2/3 dealiasing on the advective term, as for the vorticity equation
+      const m = this.mask[i];
+      let c = scRe[i] - (m ? 0 : wr[i]) * dt, s = scIm[i] - (m ? 0 : wi[i]) * dt;
+      if (i !== 0) { const f = Math.exp(-this.kappa * k2[i] * dt); c *= f; s *= f; }
+      scRe[i] = c; scIm[i] = s;
+    }
+  }
+
+  // ---- diagnostics: E(k) and Pi(k) = -sum_{q<=k} T(q)
+  diagnostics() {
+    const n = this.n, nn = this.nn, pl = this.pl;
+    const s = 1 / nn;
+    const kx = this.kx, ky = this.ky, k2 = this.k2, mask = this.mask, kmag = this.kmag;
+    const wr = this.wr, wi = this.wi, tre = this.tre, tim = this.tim;
+    const sur = this.sur, sui = this.sui, svr = this.svr, svi = this.svi;
+    const u = this.u, v = this.v, dux = this.dux, duy = this.duy, dvx = this.dvx, dvy = this.dvy;
+    let i;
+
+    for (i = 0; i < nn; i++) {
+      const pr = i === 0 ? 0 : this.sre[i] / k2[i];
+      const pi = i === 0 ? 0 : this.sim[i] / k2[i];
+      sur[i] = pi * ky[i]; sui[i] = -pr * ky[i];
+      svr[i] = -pi * kx[i]; svi[i] = pr * kx[i];
+    }
+    // derivatives of u and v
+    for (i = 0; i < nn; i++) { const a = kx[i]; wr[i] = -a * sui[i]; wi[i] = a * sur[i]; }
+    fft2(wr, wi, tre, tim, pl, true); dux.set(wr);
+    for (i = 0; i < nn; i++) { const b = ky[i]; wr[i] = -b * sui[i]; wi[i] = b * sur[i]; }
+    fft2(wr, wi, tre, tim, pl, true); duy.set(wr);
+    for (i = 0; i < nn; i++) { const a = kx[i]; wr[i] = -a * svi[i]; wi[i] = a * svr[i]; }
+    fft2(wr, wi, tre, tim, pl, true); dvx.set(wr);
+    for (i = 0; i < nn; i++) { const b = ky[i]; wr[i] = -b * svi[i]; wi[i] = b * svr[i]; }
+    fft2(wr, wi, tre, tim, pl, true); dvy.set(wr);
+    // physical u, v
+    wr.set(sur); wi.set(sui);
+    fft2(wr, wi, tre, tim, pl, true); u.set(wr);
+    wr.set(svr); wi.set(sui);
+    fft2(wr, wi, tre, tim, pl, true); v.set(wr);
+
+    // strain axis at probe
+    const px = Math.min(n - 1, Math.floor((this.probe.x / TAU) * n) % n);
+    const py = Math.min(n - 1, Math.floor((this.probe.y / TAU) * n) % n);
+    const pi2 = py * n + px;
+    const sxx = dux[pi2], syy = dvy[pi2], sxy = 0.5 * (duy[pi2] + dvx[pi2]);
+    this.strainAxis = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+
+    // NLx, NLy
+    const nlx = this.nlx, nly = this.nly;
+    for (i = 0; i < nn; i++) {
+      nlx[i] = u[i] * dux[i] + v[i] * duy[i];
+      nly[i] = u[i] * dvx[i] + v[i] * dvy[i];
+    }
+    wr.set(nlx); for (i = 0; i < nn; i++) wi[i] = 0;
+    fft2(wr, wi, tre, tim, pl, false);
+    const nlxr = this.nlxr, nlyi = this.nlyi;
+    nlxr.set(wr); nlyi.set(wi);
+    wr.set(nly); for (i = 0; i < nn; i++) wi[i] = 0;
+    fft2(wr, wi, tre, tim, pl, false);
+
+    const kmax = n / 2;
+    const e = new Float64Array(kmax + 2), tr = new Float64Array(kmax + 2);
+    for (i = 1; i < nn; i++) {
+      const b = Math.round(kmag[i]);
+      if (b > kmax) continue;
+      const us = sur[i] * s, ui = sui[i] * s, vs = svr[i] * s, vi = svi[i] * s;
+      e[b] += 0.5 * (us * us + ui * ui + vs * vs + vi * vi);
+      // Re(conj(u)*NLx + conj(v)*NLy)
+      const nr = nlxr[i] * s, ni = nlyi[i] * s;
+      const m2r = wr[i] * s, m2i = wi[i] * s;
+      const rp1 = us * nr + ui * ni;
+      const rp2 = vs * m2r + vi * m2i;
+      tr[b] -= (rp1 + rp2);
+    }
+    const flux = new Float64Array(kmax + 1);
+    let acc = 0;
+    for (let kb = 1; kb <= kmax; kb++) { acc += tr[kb]; flux[kb] = -acc; }
+
+    this.shellK = []; this.shellE = []; this.shellFlux = [];
+    for (let kb = 1; kb <= kmax; kb++) { this.shellK.push(kb); this.shellE.push(e[kb]); this.shellFlux.push(flux[kb]); }
+
+    for (let kb = 1; kb <= kmax; kb++) { this.accE[kb] += e[kb]; this.accTr[kb] += tr[kb]; }
+    this.nDiag++;
+    const inv = 1 / this.nDiag;
+    let a2 = 0;
+    const af = [];
+    for (let kb = 1; kb <= kmax; kb++) { a2 += this.accTr[kb] * inv; af.push(-a2); }
+    this.avgK = []; this.avgE = []; this.avgFlux = [];
+    for (let kb = 1; kb <= kmax; kb++) { this.avgK.push(kb); this.avgE.push(this.accE[kb] * inv); this.avgFlux.push(af[kb - 1]); }
+  }
+
+  resetAverage() { this.accE.fill(0); this.accTr.fill(0); this.nDiag = 0; }
+
+  uvRms() {
+    const s = 1 / this.nn, k2 = this.k2, kx = this.kx, ky = this.ky;
+    let su = 0, sv = 0;
+    for (let i = 1; i < this.nn; i++) {
+      const pr = this.sre[i] / k2[i], pi = this.sim[i] / k2[i];
+      const ur = pi * ky[i] * s, ui = -pr * ky[i] * s;
+      const vr = -pi * kx[i] * s, vi = pr * kx[i] * s;
+      su += ur * ur + ui * ui; sv += vr * vr + vi * vi;
+    }
+    return [Math.sqrt(su), Math.sqrt(sv)];
+  }
+
+  bandedFraction() {
+    const kx = this.kx, ky = this.ky, k2 = this.k2;
+    let tot = 0, band = 0;
+    for (let i = 1; i < this.nn; i++) {
+      const pr = this.sre[i] / k2[i], pi = this.sim[i] / k2[i];
+      const ur = pi * ky[i], ui = -pr * ky[i], vr = -pi * kx[i], vi = pr * kx[i];
+      const e = ur * ur + ui * ui + vr * vr + vi * vi;
+      tot += e;
+      if (kx[i] === 0) band += e;
+    }
+    return tot > 0 ? band / tot : 0;
+  }
+
+  energy() {
+    const s = 1 / this.nn, k2 = this.k2, kx = this.kx, ky = this.ky;
+    let e = 0;
+    for (let i = 1; i < this.nn; i++) {
+      const pr = this.sre[i] / k2[i], pi = this.sim[i] / k2[i];
+      const ur = pi * ky[i] * s, ui = -pr * ky[i] * s;
+      const vr = -pi * kx[i] * s, vi = pr * kx[i] * s;
+      e += 0.5 * (ur * ur + ui * ui + vr * vr + vi * vi);
+    }
+    return e;
+  }
+}
+
+// -------------------------------------------------------------- scene setup
+const SCENES = {
+  cascade:  "Dual cascade (bare turbulence)",
+  rod:      "Rod / 45-deg flux switch",
+  swimmers: "Brine-shrimp swarm (active matter)",
+  mhd:      "MHD channel (counter-rotating bands)",
+  jets:     "Beta-plane zonal jets (Great Red Spot)",
+  barrier:  "Transport barrier (two-fluid mixing)"
+};
+
+function configure(s, scene) {
+  s.nu = 2e-5; s.drag = 0.05; s.dragK = 2; s.kf = 8; s.forceAmp = 20;
+  s.dipoleOn = false; s.dipoles = []; s.dipoleSigma = 0.10;
+  s.swimMove = false; s.swimSpeed = 0; s.swimNoise = 0;
+  s.bandOn = false; s.bandAmp = 0; s.bandK = 1;
+  s.beta = 0; s.scalarOn = false; s.kappa = 1e-4; s.wobble = 0;
+  s.probe = { x: Math.PI, y: Math.PI };
+
+  if (scene === "rod") {
+    // (pi, pi/2) is where the banded drive's shear actually is. (pi, pi) is a
+    // strain NODE - |S| is 44x smaller there - so "direction of maximum
+    // stretching" would be meaningless. Harmless when no band is on.
+    s.dipoles = [{ x: Math.PI, y: Math.PI / 2, th: 0, amp: 1.5 }];
+    s.dipoleOn = true;
+    s.probe = { x: Math.PI, y: Math.PI / 2 };
+  } else if (scene === "swimmers") {
+    s.forceAmp = 12; s.dipoleSigma = 0.055;
+    s.dipoleOn = true; s.swimMove = true; s.swimSpeed = 0.45; s.swimNoise = 0.15;
+    for (let i = 0; i < 24; i++) s.dipoles.push({ x: rrange(0, TAU), y: rrange(0, TAU), th: rrange(0, TAU), amp: 1.5 });
+  } else if (scene === "mhd") {
+    s.nu = 0.03; s.bandOn = true; s.bandAmp = 0.10; s.bandK = 1;
+    s.forceAmp = 0; s.drag = 0.10;
+    s.dipoles = [{ x: Math.PI, y: Math.PI / 2, th: 0, amp: 1.5 }];
+  } else if (scene === "jets") {
+    s.beta = 50; s.forceAmp = 5; s.drag = 0.05; s.dragK = 1; s.kf = 12;
+  } else if (scene === "barrier") {
+    s.nu = 0.01; s.forceAmp = 0; s.bandOn = true; s.bandAmp = 0.10; s.bandK = 1;
+    s.drag = 0.10; s.scalarOn = true; s.kappa = 1e-4; s.wobble = 0.55;
+    s.dipoles = [{ x: Math.PI, y: Math.PI + 0.35, th: 0, amp: 2.0 }];
+    s.initScalar(0.55);
+  }
+  s.rebuildForce();
+}
+
+// -------------------------------------------------------------- field guide
+const N = {};
+N.display = "<p>The image is the <em>vorticity</em> field w = curl(u) of a genuine 2D incompressible flow on a periodic box. Bright blue = clockwise spin, bright orange = counter-clockwise, and black = little rotation. Hue carries the sign, brightness carries the strength, so zero vorticity recedes into the dark background and only structure shows. Bright filaments are shear layers; round blobs are vortices. There is no third dimension - every eddy is a vertical column seen from above.</p>";
+N.dyeDisplay = "<p>The image is a passive scalar (dye) carried by the flow: blue = one fluid, pale yellow = the other, with a sharp interface across the middle. The flow does not create or destroy dye, it only stirs it, so the picture shows exactly where mixing has happened. Once the interface breaks into filaments the fluids are mixed.</p>";
+N.cascades = "<h2>The two cascades</h2><p>3D turbulence breaks big eddies into smaller ones until viscosity turns the motion into heat: a forward cascade. 2D turbulence is different - enstrophy still goes forward, but <em>energy cascades backward</em>, climbing to the largest scales in the box (Kraichnan and Batchelor). That inverse cascade is what feeds Jupiter's Great Red Spot from the small eddies around its rim.</p><p>Pi(k) = -sum over q&lt;=k of T(q), where T is the transfer spectrum of the advective term:<br>Pi &lt; 0 -&gt; energy moving to LARGER scales (inverse)<br>Pi &gt; 0 -&gt; energy moving to SMALLER scales (forward)<br>Below the peak you should see Pi negative; above it, positive.</p>";
+N.plots = "<h2>Reading the plots</h2><p>E(k) is energy per wavenumber, log-log. Wavenumber is inverse length, so small k = big structures. The peak sits at the forcing wavenumber kf. Straight stretches on a log-log plot are power laws; treat the slope as illustrative at this resolution.</p><p>Both curves are time-averaged: the instantaneous flux is very noisy. Use Restart scene after changing anything dramatic.</p>";
+N.rodRule = "<h2>The 45-degree rule</h2><p>Green line = direction of maximum stretching, the principal axis of the strain-rate tensor S = (grad u + grad u^T)/2. Grey lines = the two 45-degree boundaries. Orange = the rod, modelled as the exact stresslet (force dipole) the researchers used. The readout gives theta between the rod and the stretching axis.</p>";
+N.rodCaveat = "<h2>Honest caveat, with measurements</h2><p>This scene does <em>not</em> reproduce the paper's clean 45-degree flux reversal. Two things stop it, both measured.</p><p>First, the default rod position sits in a strain <em>node</em>: |S| = 0.067 at (pi,pi) against 12.0 at (pi,pi/2) - a factor of 180 - so 'the direction of maximum stretching' is meaningless there. The Aligned/Across presets move the rod to where the strain actually is.</p><p>Second, and deeper: placed correctly in a steady imposed shear (ambient axis a clean 45.00 deg, rod-off flux ~1e-17, so the rod is the only source), the rod's own stresslet still dominates the local strain, and unless viscosity is high enough for the rod's scale to equilibrate the flux is not stationary - successive 320-step windows flip sign and vary 16x. In the stationary regime the flux varies smoothly by 22x with the rod's <em>absolute</em> angle but never changes sign, and two orientations that pure-shear symmetry says must be equivalent differ by 22x. The stresslet-strain coupling predicts zero at both 0 and 90 deg, yet those differ 22x - so the effect here is not the alignment mechanism the paper reports.</p>";
+N.swim = "<h2>Active matter</h2><p>Each tick is one brine-shrimp analogue - a small force dipole that pushes fluid one way at its head and the opposite way at its tail, so it swims. They are advected by the flow, rotate with the local vorticity, and wander a little on their own.</p><p>The question the paper starts from: in a large body of water, do billions of tiny swimmers matter for mixing? Turn the swarm on and watch the small-scale structure thicken. With forcing at 0 the flow is driven entirely by them. For the animals themselves, open <a href=\"brine-shrimp.html\">brine-shrimp.html</a>.</p>";
+N.mhd = "<h2>The apparatus</h2><p>The Pittsburgh experiment in its simplest form. A thin film of conductive salt water sits on glass with magnets underneath; a current through the fluid produces a Lorentz force j x B that drives the water one way along one side of the channel and the opposite way along the other. The velocity gradient between the bands is the shear the shrimp swim in.</p><p>Here that drive is a steady banded body force f_x = A cos(k y). The shallow film also has real bottom friction, which is why friction is significant here.</p>";
+N.jets = "<h2>Beta plane and zonal jets</h2><p>Adding a Coriolis gradient (the beta effect) changes where the inverse cascade can go. Energy is arrested at the Rhines wavenumber k_b = sqrt(beta / 2U) and the flow develops alternating east-west bands - the mechanism behind Jupiter's banded atmosphere.</p><p>Stated honestly: at this box size the zonal signature is real but modest - the zonal energy fraction climbs to 2 to 4 times the isotropic baseline and u_rms/v_rms to about 1.6, stable for beta between about 20 and 120. Beta near 300 suppresses it again, because the Rossby waves outrun the eddy turnover. Many-banded jets need a domain many jet-widths across.</p>";
+N.barrier = "<h2>The transport barrier</h2><p>Fang's theory concerns the transport barrier: the boundary between two fluids that resist mixing. Keeping such a boundary intact costs energy; the claim is that disrupting it locally uses less than 1 percent of that cost. Here the interface is the dye boundary across the middle. With the perturbation off it holds, only slowly diffusing. Switch the perturbation on and vortices tear it into filaments - that is mixing.</p>";
+N.knobs = "<h2>Knobs</h2><p>forcing = strength of the random small-scale stirring (the energy source).<br>kf = the wavenumber it is injected at.<br>viscosity = damps the smallest scales at rate nu*k^2, setting where the forward cascade dies.<br>friction / friction below k = drains the biggest scales; without it energy piles into a condensate at k = 1.<br>rod and swarm strength/size = how hard a stresslet pushes and at what scale.<br>band drive / band wavenumber = the MHD force and how many counter-rotating bands fit across the box.<br>beta = Coriolis gradient, sets the jet spacing.<br>dye diffusivity = how fast the interface blurs on its own.<br>steps/frame = speed only, not physics.</p><p>The <em>presets</em> box holds named variations of the scene. Each one <em>restarts</em> the scene - a fresh flow from the same initial condition, with the time-averaged plots zeroed - and then applies its change. So presets are independent and directly comparable, and the Pi(k) and E(k) curves always describe the current settings rather than a blend of two different regimes.</p>";
+
+function notesFor(scene) {
+  let h = scene === "barrier" ? N.dyeDisplay : N.display;
+  if (scene === "cascade") h += "<h2>The bare experiment</h2><p>No rod, no swimmers: just forced 2D turbulence. This is the baseline every other scene perturbs.</p>";
+  if (scene === "rod") h += N.rodRule + N.rodCaveat;
+  if (scene === "swimmers") h += N.swim;
+  if (scene === "mhd") h += N.mhd;
+  if (scene === "jets") h += N.jets;
+  if (scene === "barrier") h += N.barrier;
+  if (scene !== "barrier") h += N.cascades;
+  h += N.plots + N.knobs;
+  return h;
+}
+
+// ---------------------------------------------------------------- plumbing
+const $ = id => document.getElementById(id);
+const cv = $("field"), ctx = cv.getContext("2d");
+const off = document.createElement("canvas");
+const octx = off.getContext("2d");
+let n = 128, DPR = 1;
+let solver = new Solver(n);
+let vmax = 1;
+
+const P = { scene: "cascade", stepsPerFrame: 2, running: true, paused: false };
+let scene = "cascade";
+
+// The field is band-limited and we hold its exact Fourier coefficients, so it can
+// be synthesized at ANY resolution exactly: zero-pad the spectrum, inverse
+// transform. That is ideal (sinc) interpolation, not an approximation. Letting
+// the browser bilinear-upscale the n x n raster instead leaves a square lattice
+// of gradient kinks on the coarse-cell boundaries, plainly visible at 8x.
+//
+// Measured in the browser, against a 7.7 ms solver step:
+//   one synthesis       1 ms (m=128)   3.5 ms (m=256)   20.7 ms (m=512)
+//   error vs true field   --            3.8%            0.8%   (bilinear: 14.1%)
+// So m=512 live, every other frame; m=1024 only for the export path.
+let synthMax = 512;       // live synthesis resolution cap (measured sweet spot)
+let synthEvery = 2;       // re-synthesize every N frames (the flow moves slowly)
+let exactScale = false;   // true: 1:1 blit, no browser resample at all
+const EXPORT_MAX = 1024;  // Save PNG: one-off cost, essentially no resample
+let synthAge = 99;
+let targetM = 0, img = null;
+let upPlan = null, upRe = null, upIm = null, upT1 = null, upT2 = null;
+
+const pow2ceil = v => { let m = 1; while (m < v) m <<= 1; return m; };
+const clamp1 = v => v < -1 ? -1 : v > 1 ? 1 : v;
+
+function ensureTarget(m) {
+  if (m === targetM) return;
+  targetM = m;
+  off.width = m; off.height = m;
+  img = octx.createImageData(m, m);
+  upPlan = mkPlan(m);
+  upRe = new Float64Array(m * m); upIm = new Float64Array(m * m);
+  upT1 = new Float64Array(m * m); upT2 = new Float64Array(m * m);
+}
+
+// Zero-pad an n x n band-limited field's spectrum to m x m and inverse transform.
+// Verified exact: resampling the result back at the coarse points reproduces the
+// original bit for bit. Result is left in `re`.
+function synthesize(sRe, sIm, n, m, re, im, t1, t2, pl) {
+  re.fill(0); im.fill(0);
+  const half = n >> 1, scale = (m * m) / (n * n);
+  for (let y = 0; y < n; y++) {
+    const ky = y <= half ? y : y - n;
+    const drow = (ky >= 0 ? ky : m + ky) * m, row = y * n;
+    for (let x = 0; x < n; x++) {
+      const kx = x <= half ? x : x - n;
+      const dx = kx >= 0 ? kx : m + kx;
+      re[drow + dx] = sRe[row + x] * scale;
+      im[drow + dx] = sIm[row + x] * scale;
+    }
+  }
+  fft2(re, im, t1, t2, pl, true);
+  return re;
+}
+
+// Colormap the VALUES at full resolution, rather than colormapping the coarse
+// grid and interpolating RGB - which smears the sharp band our map has at zero.
+function colorize(f, m, imageData, useDye, norm) {
+  const d = imageData.data;
+  if (useDye) {
+    for (let i = 0, j = 0; i < m * m; i++, j += 4) {
+      const c = lerpStops(DSTOPS, 0.5 * (1 + clamp1(f[i])));
+      d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
+    }
+  } else {
+    const inv = 1 / norm;
+    for (let i = 0, j = 0; i < m * m; i++, j += 4) {
+      const c = lerpStops(VSTOPS, 0.5 * (1 + clamp1(f[i] * inv)));
+      d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
+    }
+  }
+}
+
+function setSize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(window.innerWidth * DPR);
+  cv.height = Math.round(window.innerHeight * DPR);
+  targetM = 0;                 // force the render target to be recomputed
+  fitPlots();
+}
+window.addEventListener("resize", setSize);
+
+function fitPlots() {
+  for (const id of ["plotFlux", "plotE"]) {
+    const c = $(id);
+    const w = c.clientWidth || 270;
+    c.width = Math.round(w * DPR);
+    c.height = Math.round(92 * DPR);
+  }
+}
+
+// ------------------------------------------------------------------ knobs
+const KNOBS = {
+  cascade: [
+    { k: "forceAmp", label: "forcing", min: 0, max: 30, step: 0.5 },
+    { k: "kf", label: "kf (source scale)", min: 2, max: 20, step: 0.5, rebuild: true }
+  ],
+  rod: [
+    { k: "dipoleOn", label: "rod active", check: true },
+    { k: "rodAngle", label: "rod angle (deg)", min: 0, max: 180, step: 1, rod: true },
+    { k: "rodAmp", label: "rod strength", min: 0, max: 10, step: 0.1, rod: true },
+    { k: "dipoleSigma", label: "rod size", min: 0.03, max: 0.3, step: 0.005 },
+    { k: "forceAmp", label: "forcing", min: 0, max: 30, step: 0.5 },
+    { k: "bandOn", label: "banded drive on", check: true },
+    { k: "bandAmp", label: "band drive", min: 0, max: 1, step: 0.01 }
+  ],
+  swimmers: [
+    { k: "dipoleOn", label: "swarm active", check: true },
+    { k: "swimMove", label: "swimmers self-propel", check: true },
+    { k: "swimCount", label: "swimmers", min: 0, max: 64, step: 1, respawn: true },
+    { k: "rodAmp", label: "swim strength", min: 0, max: 10, step: 0.1, all: true },
+    { k: "dipoleSigma", label: "swimmer size", min: 0.02, max: 0.2, step: 0.005 },
+    { k: "swimSpeed", label: "swim speed", min: 0, max: 1.5, step: 0.02 },
+    { k: "swimNoise", label: "orientation noise", min: 0, max: 0.6, step: 0.01 },
+    { k: "forceAmp", label: "forcing", min: 0, max: 30, step: 0.5 }
+  ],
+  mhd: [
+    { k: "bandAmp", label: "band drive", min: 0, max: 1, step: 0.01 },
+    { k: "bandK", label: "band wavenumber", min: 1, max: 8, step: 1 },
+    { k: "bandOn", label: "drive on", check: true },
+    { k: "forceAmp", label: "turbulent forcing", min: 0, max: 10, step: 0.25 },
+    { k: "dipoleOn", label: "rod / obstacle active", check: true },
+    { k: "rodAngle", label: "rod angle (deg)", min: 0, max: 180, step: 1, rod: true },
+    { k: "rodAmp", label: "rod strength", min: 0, max: 10, step: 0.1, rod: true },
+    { k: "dipoleSigma", label: "rod size", min: 0.03, max: 0.3, step: 0.005 }
+  ],
+  jets: [
+    { k: "beta", label: "beta (Coriolis)", min: 0, max: 300, step: 1 },
+    { k: "forceAmp", label: "forcing", min: 0, max: 30, step: 0.5 },
+    { k: "kf", label: "kf", min: 2, max: 20, step: 0.5, rebuild: true }
+  ],
+  barrier: [
+    { k: "dipoleOn", label: "perturbation active", check: true },
+    { k: "rodAngle", label: "perturbation angle (deg)", min: 0, max: 180, step: 1, rod: true },
+    { k: "rodAmp", label: "perturbation strength", min: 0, max: 10, step: 0.1, rod: true },
+    { k: "dipoleSigma", label: "perturbation size", min: 0.05, max: 0.4, step: 0.005 },
+    { k: "kappa", label: "dye diffusivity", min: 1e-6, max: 1e-2, step: 1e-6, log: true },
+    { k: "wobble", label: "perturbation spin", min: 0, max: 2, step: 0.05 },
+    { k: "bandAmp", label: "shear drive", min: 0, max: 1, step: 0.01 }
+  ]
+};
+
+// ------------------------------------------------------------------ presets
+// Each scene gets named subtypes. Applied live (no restart) so you can watch
+// the system cross over. "Standard" is a no-op that keeps the tuned defaults.
+function mkSwimmers(s, count, sigma) {
+  s.dipoles = [];
+  for (let i = 0; i < count; i++) s.dipoles.push({ x: rrange(0, TAU), y: rrange(0, TAU), th: rrange(0, TAU), amp: 1.5 });
+  s.dipoleSigma = sigma;
+}
+
+const PRESETS = {
+  cascade: [
+    ["Standard", () => {}],
+    ["Inverse range only (kf = 4)", s => { s.kf = 4; s.rebuildForce(); }],
+    ["Forward range only (kf = 16)", s => { s.kf = 16; s.rebuildForce(); }],
+    ["Condensate (friction off)", s => { s.drag = 0; }],
+    ["Low viscosity (wider range)", s => { s.nu = 1e-6; }],
+    ["Strong stirring", s => { s.forceAmp = 30; }]
+  ],
+  rod: [
+    ["Standard (rod at 0 deg)", () => {}],
+    ["Rod off (control)", s => { s.dipoleOn = false; }],
+    ["Aligned with stretching (banded)", s => {
+      s.bandOn = true; s.bandAmp = 0.25;
+      s.dipoles[0].th = Math.PI / 4;               // ambient pure-shear axis is 45 deg
+    }],
+    ["Across the stretching (banded)", s => {
+      s.bandOn = true; s.bandAmp = 0.25;
+      s.dipoles[0].th = 3 * Math.PI / 4;
+    }],
+    ["Strong obstacle", s => { s.dipoleOn = true; s.dipoles[0].amp = 8; }],
+    ["Coherent strain (banded drive)", s => { s.bandOn = true; s.bandAmp = 0.25; }]
+  ],
+  swimmers: [
+    ["Standard swarm (24)", () => {}],
+    ["Swarm alone (no stirring)", s => { s.forceAmp = 0; }],
+    ["Dense swarm (48 small)", s => mkSwimmers(s, 48, 0.04)],
+    ["Few large swimmers", s => mkSwimmers(s, 6, 0.15)],
+    ["Fast swimmers", s => { s.swimSpeed = 1.2; }],
+    ["Disoriented (high noise)", s => { s.swimNoise = 0.55; }]
+  ],
+  mhd: [
+    ["Standard (one band pair)", () => {}],
+    ["Four bands", s => { s.bandK = 4; }],
+    ["Eight bands", s => { s.bandK = 8; }],
+    ["Turbulent channel", s => { s.forceAmp = 3; }],
+    ["Rod obstacle in the channel", s => { s.dipoleOn = true; }],
+    ["Frictionless (bands break up)", s => { s.drag = 0; s.nu = 2e-4; }]
+  ],
+  jets: [
+    ["Standard (beta = 50)", () => {}],
+    ["No rotation (isotropic)", s => { s.beta = 0; }],
+    ["Narrow jets (beta = 120)", s => { s.beta = 120; s.forceAmp = 3; }],
+    ["Over-strong beta (suppressed)", s => { s.beta = 300; }],
+    ["Weak forcing (stronger banding)", s => { s.forceAmp = 2; }]
+  ],
+  barrier: [
+    ["Barrier holds (no perturbation)", s => { s.dipoleOn = false; }],
+    ["Perturbation tears it", s => { s.dipoleOn = true; }],
+    ["Fast mixing (spinning)", s => { s.dipoleOn = true; s.wobble = 1.5; s.dipoles[0].amp = 6; }],
+    ["Slow tear (steady perturb)", s => { s.dipoleOn = true; s.wobble = 0; s.dipoles[0].amp = 1.0; }],
+    ["Diffusion only (no flow)", s => { s.dipoleOn = false; s.bandAmp = 0; s.kappa = 5e-3; }],
+    ["Strong shear", s => { s.dipoleOn = true; s.bandAmp = 0.5; }]
+  ]
+};
+
+function populatePresets(sc) {
+  const sel = $("preset");
+  sel.innerHTML = PRESETS[sc].map((p, i) => `<option value="${i}">${p[0]}</option>`).join("");
+  sel.value = "0";
+}
+
+function applyPreset(i) {
+  const p = PRESETS[scene] && PRESETS[scene][i];
+  if (!p) return;
+  // Restart rather than adjust in place. A preset is a *regime*, and the flux
+  // and spectrum plots are time-averaged: patching parameters into a running
+  // flow would leave the average blending two different regimes. A fresh Solver
+  // also zeroes those accumulators, and starts every preset from the identical
+  // (deterministic) initial condition, so presets are comparable.
+  solver = new Solver(n);
+  configure(solver, scene);
+  p[1](solver);
+  vmax = 1;
+  buildKnobs();
+  buildShared();
+}
+
+// virtual knob accessors that target the first dipole
+function getKnob(k) {
+  if (k === "rodAngle") return solver.dipoles.length ? solver.dipoles[0].th * 180 / Math.PI : 0;
+  if (k === "rodAmp") return solver.dipoles.length ? solver.dipoles[0].amp : 1;
+  if (k === "swimCount") return solver.dipoles.length;
+  return solver[k];
+}
+function setKnob(k, v, spec) {
+  if (k === "rodAngle") { if (solver.dipoles.length) solver.dipoles[0].th = v * Math.PI / 180; return; }
+  if (k === "rodAmp") {
+    if (spec && spec.all) { for (const d of solver.dipoles) d.amp = v; }
+    else if (solver.dipoles.length) solver.dipoles[0].amp = v;
+    return;
+  }
+  solver[k] = v;
+}
+
+function buildKnobs() {
+  const host = $("knobs");
+  const specs = KNOBS[scene] || [];
+  let h = "";
+  for (const sp of specs) {
+    if (sp.check) h += `<div class="row check"><input id="k_${sp.k}" type="checkbox"${getKnob(sp.k) ? " checked" : ""}><label for="k_${sp.k}">${sp.label}</label></div>`;
+    else h += `<div class="row"><label for="k_${sp.k}">${sp.label}</label><input id="k_${sp.k}" type="range" min="${sp.min}" max="${sp.max}" step="${sp.step}" value="${getKnob(sp.k)}"><output id="o_${sp.k}"></output></div>`;
+  }
+  host.innerHTML = h;
+  for (const sp of specs) {
+    const el = $("k_" + sp.k);
+    if (!el) continue;
+    if (sp.check) {
+      el.addEventListener("change", () => { solver[sp.k] = el.checked; });
+      continue;
+    }
+    const out = $("o_" + sp.k);
+    const show = () => { out.textContent = sp.log ? (+el.value).toExponential(1) : (+el.value).toFixed(sp.step < 1 ? 2 : 0); };
+    show();
+    el.addEventListener("input", () => {
+      const v = parseFloat(el.value);
+      setKnob(sp.k, v, sp);
+      if (sp.rebuild) solver.rebuildForce();
+      if (sp.respawn) respawn();
+      show();
+    });
+  }
+}
+
+function buildShared() {
+  const host = $("shared");
+  host.innerHTML =
+    `<div class="row"><label for="k_res">grid size</label><select id="k_res"><option value="64">64</option><option value="128">128</option><option value="256">256</option><option value="512">512</option></select><output id="o_res"></output></div>
+     <div class="row"><label for="k_nu">viscosity</label><input id="k_nu" type="range" min="-6" max="-1" step="0.05" value="${Math.log10(solver.nu)}"><output id="o_nu"></output></div>
+     <div class="row"><label for="k_drag">large-scale friction</label><input id="k_drag" type="range" min="0" max="0.3" step="0.005" value="${solver.drag}"><output id="o_drag"></output></div>
+     <div class="row"><label for="k_dragK">friction below k</label><input id="k_dragK" type="range" min="1" max="12" step="1" value="${solver.dragK}"><output id="o_dragK"></output></div>
+     <div class="row"><label for="k_spf">steps / frame</label><input id="k_spf" type="range" min="1" max="6" step="1" value="${P.stepsPerFrame}"><output id="o_spf"></output></div>`;
+  const res = $("k_res"), ores = $("o_res");
+  res.value = String(n);
+  ores.textContent = n + "x" + n;
+  res.addEventListener("change", e => setRes(+e.target.value));
+  const nu = $("k_nu"), drag = $("k_drag"), dk = $("k_dragK"), spf = $("k_spf");
+  const onu = $("o_nu"), od = $("o_drag"), odk = $("o_dragK"), ospf = $("o_spf");
+  onu.textContent = solver.nu.toExponential(1);
+  od.textContent = solver.drag.toFixed(3);
+  odk.textContent = solver.dragK.toFixed(0);
+  ospf.textContent = P.stepsPerFrame;
+  nu.addEventListener("input", () => { solver.nu = Math.pow(10, +nu.value); onu.textContent = solver.nu.toExponential(1); });
+  drag.addEventListener("input", () => { solver.drag = +drag.value; od.textContent = solver.drag.toFixed(3); });
+  dk.addEventListener("input", () => { solver.dragK = +dk.value; odk.textContent = solver.dragK.toFixed(0); });
+  spf.addEventListener("input", () => { P.stepsPerFrame = +spf.value; ospf.textContent = P.stepsPerFrame; });
+}
+
+function respawn() {
+  const want = $("k_swimCount") ? +$("k_swimCount").value : solver.dipoles.length;
+  solver.dipoles = [];
+  for (let i = 0; i < want; i++) solver.dipoles.push({ x: rrange(0, TAU), y: rrange(0, TAU), th: rrange(0, TAU), amp: 1.5 });
+}
+
+function switchScene(s) {
+  scene = s;
+  P.scene = s;
+  solver = new Solver(n);
+  configure(solver, s);
+  vmax = 1;
+  $("guideBody").innerHTML = notesFor(s);
+  $("guideTitle").textContent = "Field guide - " + SCENES[s];
+  $("scene").value = s;
+  buildKnobs();
+  buildShared();
+  populatePresets(s);
+}
+
+// Changing the grid re-creates the solver (all arrays are sized to n) and
+// resets the flow and the time-averaged plots.
+function setRes(newN) {
+  if (newN === n) return;
+  n = newN;
+  switchScene(scene);
+  setSize();
+}
+
+// -------------------------------------------------------------- rendering
+function drawField() {
+  const cw = cv.width, ch = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = "#03080e";
+  ctx.fillRect(0, 0, cw, ch);
+
+  const useDye = scene === "barrier";
+  const maxSide = Math.min(cw, ch) * 0.94;
+  // Default: synthesize at half the display and let the GPU do a cheap 4x tail.
+  // exactScale: make the square exactly the synthesis size, so drawImage is 1:1
+  // and there is no resample at all.
+  let m = exactScale ? pow2ceil(Math.max(64, maxSide))
+                     : pow2ceil(Math.max(64, Math.ceil(maxSide / 2)));
+  // never below the solver grid: synthesizing below n would fold modes
+  m = Math.max(Math.min(m, synthMax), n);
+  const forced = m !== targetM;
+  ensureTarget(m);
+  const sideD = exactScale ? m : Math.floor(maxSide);
+  const x0D = Math.round((cw - sideD) / 2);
+  const y0D = Math.round((ch - sideD) / 2);
+
+  // Resynthesize only every SYNTH_EVERY frames; in between, re-blit the previous
+  // image. The flow evolves far slower than the frame rate, so this is invisible.
+  if (forced || synthAge >= synthEvery) {
+    const f = synthesize(useDye ? solver.scRe : solver.sre,
+                         useDye ? solver.scIm : solver.sim,
+                         n, m, upRe, upIm, upT1, upT2, upPlan);
+    let norm = 1;
+    if (!useDye) {
+      let cur = 1e-9;
+      for (let i = 0; i < m * m; i++) { const a = Math.abs(f[i]); if (a > cur) cur = a; }
+      vmax = Math.max(vmax * 0.92, cur * 1.05, 1e-6);
+      norm = vmax;
+    }
+    colorize(f, m, img, useDye, norm);
+    octx.putImageData(img, 0, 0);
+    synthAge = 0;
+  }
+  synthAge++;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(off, 0, 0, m, m, x0D, y0D, sideD, sideD);
+
+  // a dark neutral makes the field blend into the page; delimit it
+  ctx.strokeStyle = "rgba(140,200,240,0.20)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0D + 0.5, y0D + 0.5, sideD - 1, sideD - 1);
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  drawOverlay(x0D / DPR, y0D / DPR, sideD / DPR);
+}
+
+function savePng() {
+  const cw = cv.width, ch = cv.height;
+  const sideD = Math.floor(Math.min(cw, ch) * 0.94);
+  let m = pow2ceil(Math.max(64, sideD));
+  m = Math.max(Math.min(m, EXPORT_MAX), n);
+  const plan = mkPlan(m);
+  const re = new Float64Array(m * m), im = new Float64Array(m * m);
+  const t1 = new Float64Array(m * m), t2 = new Float64Array(m * m);
+  const useDye = scene === "barrier";
+  const f = synthesize(useDye ? solver.scRe : solver.sre,
+                       useDye ? solver.scIm : solver.sim,
+                       n, m, re, im, t1, t2, plan);
+  const c = document.createElement("canvas");
+  c.width = m; c.height = m;
+  const g = c.getContext("2d");
+  const id = g.createImageData(m, m);
+  colorize(f, m, id, useDye, useDye ? 1 : vmax);
+  g.putImageData(id, 0, 0);
+  c.toBlob(function (blob) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "turbulence-" + scene + "-" + m + "x" + m + "-" + Date.now() + ".png";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+  }, "image/png");
+}
+
+function mapPt(x, y, x0, y0, side) {
+  return [x0 + (x / TAU) * side, y0 + side - (y / TAU) * side];
+}
+
+function drawOverlay(x0, y0, side) {
+  const scale = side / TAU;
+  ctx.lineCap = "round";
+  if (scene === "rod" || scene === "mhd") {
+    const c = mapPt(solver.probe.x, solver.probe.y, x0, y0, side);
+    if (scene === "rod") {
+      const sa = solver.strainAxis, r = 0.9 * scale;
+      ctx.strokeStyle = "rgba(90,230,120,0.9)"; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(c[0] - Math.cos(sa) * r, c[1] + Math.sin(sa) * r);
+      ctx.lineTo(c[0] + Math.cos(sa) * r, c[1] - Math.sin(sa) * r);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(130,130,140,0.75)"; ctx.lineWidth = 1;
+      for (const sg of [-1, 1]) {
+        const a = sa + sg * Math.PI / 4;
+        ctx.beginPath(); ctx.moveTo(c[0], c[1]);
+        ctx.lineTo(c[0] + Math.cos(a) * r, c[1] - Math.sin(a) * r); ctx.stroke();
+      }
+    }
+    if (solver.dipoleOn && solver.dipoles.length) {
+      const d = solver.dipoles[0], p = mapPt(d.x, d.y, x0, y0, side), rl = 0.6 * scale;
+      ctx.strokeStyle = "rgba(255,170,40,0.95)"; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(p[0] - Math.cos(d.th) * rl, p[1] + Math.sin(d.th) * rl);
+      ctx.lineTo(p[0] + Math.cos(d.th) * rl, p[1] - Math.sin(d.th) * rl);
+      ctx.stroke();
+    }
+  }
+  if (scene === "swimmers") {
+    ctx.strokeStyle = "rgba(255,200,60,0.9)"; ctx.lineWidth = 2;
+    for (const d of solver.dipoles) {
+      const p = mapPt(d.x, d.y, x0, y0, side), r = 0.3 * scale;
+      ctx.beginPath();
+      ctx.moveTo(p[0] - Math.cos(d.th) * r, p[1] + Math.sin(d.th) * r);
+      ctx.lineTo(p[0] + Math.cos(d.th) * r, p[1] - Math.sin(d.th) * r);
+      ctx.stroke();
+    }
+  }
+  if (scene === "mhd") {
+    const yA = y0 + side * 0.70, yB = y0 + side * 0.30;
+    ctx.strokeStyle = "rgba(120,220,255,0.8)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x0 + side * 0.12, yB); ctx.lineTo(x0 + side * 0.88, yB); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0 + side * 0.88, yA); ctx.lineTo(x0 + side * 0.12, yA); ctx.stroke();
+  }
+  if (scene === "jets") {
+    ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 1;
+    for (let k = 1; k < 6; k++) {
+      const y = y0 + side * k / 6;
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + side, y); ctx.stroke();
+    }
+  }
+  if (scene === "barrier") {
+    const p = mapPt(0, Math.PI + 0.35, x0, y0, side);
+    ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, p[1]); ctx.lineTo(x0 + side, p[1]); ctx.stroke();
+    if (solver.dipoleOn && solver.dipoles.length) {
+      const d = solver.dipoles[0], q = mapPt(d.x, d.y, x0, y0, side), rl = 0.7 * scale;
+      ctx.strokeStyle = "rgba(255,90,90,0.95)"; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(q[0] - Math.cos(d.th) * rl, q[1] + Math.sin(d.th) * rl);
+      ctx.lineTo(q[0] + Math.cos(d.th) * rl, q[1] - Math.sin(d.th) * rl);
+      ctx.stroke();
+    }
+  }
+}
+
+function plot(id, xs, ys, xlog, ylog, color, zero) {
+  const c = $(id), g = c.getContext("2d");
+  const W = c.width, H = c.height;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = "#0b1a28"; g.fillRect(0, 0, W, H);
+  if (!xs.length) return;
+  const xf = v => xlog ? Math.log(Math.max(v, 1e-9)) : v;
+  const yf = v => ylog ? Math.log(Math.max(v, 1e-30)) : v;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < xs.length; i++) {
+    const a = xf(xs[i]), b = yf(ys[i]);
+    if (!isFinite(a) || !isFinite(b)) continue;
+    if (a < x0) x0 = a; if (a > x1) x1 = a;
+    if (b < y0) y0 = b; if (b > y1) y1 = b;
+  }
+  if (!isFinite(x0) || x1 <= x0 || y1 <= y0) return;
+  const mx = v => 4 + (v - x0) / (x1 - x0) * (W - 8);
+  const my = v => H - 4 - (v - y0) / (y1 - y0) * (H - 8);
+  if (zero && y0 < 0 && y1 > 0) {
+    g.strokeStyle = "rgba(90,90,100,0.8)"; g.lineWidth = 1 * DPR;
+    g.beginPath(); g.moveTo(0, my(0)); g.lineTo(W, my(0)); g.stroke();
+  }
+  g.strokeStyle = color; g.lineWidth = 1.6 * DPR;
+  g.beginPath();
+  let started = false;
+  for (let i = 0; i < xs.length; i++) {
+    const a = xf(xs[i]), b = yf(ys[i]);
+    if (!isFinite(a) || !isFinite(b)) continue;
+    if (!started) { g.moveTo(mx(a), my(b)); started = true; } else g.lineTo(mx(a), my(b));
+  }
+  g.stroke();
+}
+
+// -------------------------------------------------------------------- loop
+let last = 0, diagCounter = 0, statAcc = 0;
+
+function frame(t) {
+  requestAnimationFrame(frame);
+  if (!last) last = t;
+  let dtms = t - last; last = t;
+  if (dtms > 100) dtms = 100;
+  if (!(dtms > 0)) dtms = 16.7;
+
+  if (P.running && !P.paused) {
+    for (let i = 0; i < P.stepsPerFrame; i++) solver.step();
+    if (++diagCounter >= 12) { diagCounter = 0; solver.diagnostics(); }
+  }
+
+  drawField();
+
+  statAcc += dtms / 1000;
+  if (statAcc > 0.2) {
+    statAcc = 0;
+    updateStats();
+    plot("plotFlux", solver.avgK, solver.avgFlux, true, false, "rgba(120,220,160,0.95)", true);
+    plot("plotE", solver.avgK, solver.avgE, true, true, "rgba(220,190,120,0.95)", false);
+  }
+}
+
+function updateStats() {
+  const deg = a => (a * 180 / Math.PI).toFixed(1);
+  let extra = "";
+  if (scene === "rod") {
+    const fold = (a, ref) => { let d = Math.abs((a - ref) % Math.PI); return Math.min(d, Math.PI - d) * 180 / Math.PI; };
+    const rodDeg = (solver.dipoles[0].th * 180 / Math.PI).toFixed(0);
+    const verdict = e => e < 45 ? "inverse (energy -> large scales)" : "forward (energy -> small scales)";
+    if (solver.bandOn) {
+      // With the imposed banded shear the reference is the shear's own principal
+      // axis, which is exactly 45 deg by construction - not the measured axis,
+      // which the rod's own stresslet contaminates.
+      const eff = fold(solver.dipoles[0].th, Math.PI / 4);
+      extra = `theta vs imposed shear <b>${eff.toFixed(1)} deg</b>  ${verdict(eff)}\n` +
+              `rod <b>${rodDeg} deg</b>   imposed axis <b>45.0 deg</b>\n` +
+              `measured axis <b>${deg(solver.strainAxis)} deg</b> (rod-contaminated)\n`;
+    } else {
+      const eff = fold(solver.dipoles[0].th, solver.strainAxis);
+      extra = `theta vs measured axis <b>${eff.toFixed(1)} deg</b>  ${verdict(eff)}\n` +
+              `rod <b>${rodDeg} deg</b>   strain axis <b>${deg(solver.strainAxis)} deg</b>\n`;
+    }
+  } else if (scene === "jets") {
+    const [ur, vr] = solver.uvRms();
+    extra = `u_rms/v_rms   <b>${vr > 0 ? (ur / vr).toFixed(2) : "inf"}</b>\n` +
+            `zonal fraction <b>${solver.bandedFraction().toFixed(3)}</b>  (isotropic ~0.01)\n`;
+  } else if (scene === "mhd") {
+    extra = `banded fraction <b>${solver.bandedFraction().toFixed(3)}</b>  (1.0 = pure counter-flow)\n`;
+  }
+  $("stats").innerHTML =
+    `scene       <b>${scene}</b>\n` +
+    `t <b>${solver.t.toFixed(1)}</b>  steps <b>${solver.steps}</b>  dt <b>${solver.dt.toFixed(4)}</b>\n` +
+    `umax <b>${solver.umax.toFixed(2)}</b>  E <b>${solver.energy().toExponential(2)}</b>\n` +
+    extra +
+    `samples     <b>${solver.nDiag}</b>`;
+}
+
+// -------------------------------------------------------------------- boot
+$("scene").innerHTML = Object.keys(SCENES).map(k => `<option value="${k}">${SCENES[k]}</option>`).join("");
+$("scene").addEventListener("change", e => switchScene(e.target.value));
+$("preset").addEventListener("change", e => applyPreset(+e.target.value));
+$("pause").addEventListener("click", () => { P.paused = !P.paused; $("pause").textContent = P.paused ? "Resume" : "Pause"; });
+$("reset").addEventListener("click", () => switchScene(scene));
+$("save").addEventListener("click", savePng);
+window.addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); $("pause").click(); }
+  if (e.key === "r" || e.key === "R") switchScene(scene);
+});
+
+setSize();
+switchScene("cascade");
+requestAnimationFrame(frame);
+
+// expose for verification
+window.LAB = { get solver() { return solver; }, get scene() { return scene; }, get n() { return n; },
+               get renderM() { return targetM; }, get renderField() { return upRe; },
+               get synthMax() { return synthMax; }, set synthMax(v) { synthMax = v; targetM = 0; },
+               get synthEvery() { return synthEvery; }, set synthEvery(v) { synthEvery = v; },
+               get exactScale() { return exactScale; }, set exactScale(v) { exactScale = v; targetM = 0; },
+               switchScene, configure, setRes, Solver, P };
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>2D spectral step - JS vs WASM vs native</title>
+<style>
+  body { margin:0; background:#07101a; color:#cfe6f5; font:13px/1.55 ui-monospace,Consolas,monospace; }
+  #wrap { padding:18px 22px; max-width:1000px; }
+  h1 { font-size:15px; font-weight:600; margin:0 0 4px; }
+  .dim { color:#7fa2bd; }
+  pre { background:#0b1a28; border:1px solid #1d3348; border-radius:8px; padding:12px 14px; overflow:auto; }
+  canvas { border:1px solid #1d3348; border-radius:6px; image-rendering:pixelated; }
+  table { border-collapse:collapse; margin-top:10px; }
+  td, th { padding:3px 14px 3px 0; text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:#7fa2bd; font-weight:500; border-bottom:1px solid #1d3348; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>One pseudo-spectral 2D Navier-Stokes step, three ways</h1>
+  <div class="dim">Identical algorithm: vorticity form, radix-2 FFT + transpose, Heun, exponential viscosity, 2/3 dealiasing.
+  Rust source <code>bench/src/lib.rs</code> compiles to native and to wasm32; the JS below mirrors it line for line.</div>
+  <div id="out"><pre>running...</pre></div>
+  <canvas id="view" width="560" height="340" style="margin-top:14px"></canvas>
+</div>
+<script>
+"use strict";
+
+// ------------------------------------------------------- radix-2 FFT (mirror)
+function mkPlan(n) {
+  const bits = Math.log2(n) | 0;
+  const rev = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    let x = i, r = 0;
+    for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>>= 1; }
+    rev[i] = r >>> 0;
+  }
+  const half = Math.max(1, n >> 1);
+  const cos = new Float64Array(half), sin = new Float64Array(half);
+  for (let i = 0; i < half; i++) {
+    const a = -2 * Math.PI * i / n;
+    cos[i] = Math.cos(a); sin[i] = Math.sin(a);
+  }
+  return { n, rev, cos, sin };
+}
+
+function fft1(re, im, off, pl, inverse) {
+  const n = pl.n, rev = pl.rev, cos = pl.cos, sin = pl.sin;
+  for (let i = 0; i < n; i++) {
+    const j = rev[i];
+    if (j > i) {
+      let t = re[off + i]; re[off + i] = re[off + j]; re[off + j] = t;
+      t = im[off + i]; im[off + i] = im[off + j]; im[off + j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1, step = n / len;
+    for (let i = 0; i < n; i += len) {
+      for (let k = 0; k < half; k++) {
+        const t = k * step;
+        const wr = cos[t];
+        const wi = inverse ? -sin[t] : sin[t];
+        const a = off + i + k, b = a + half;
+        const xr = re[b] * wr - im[b] * wi;
+        const xi = re[b] * wi + im[b] * wr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi;
+        re[a] += xr; im[a] += xi;
+      }
+    }
+  }
+}
+
+function fft2(dre, dim, tre, tim, pl, inverse) {
+  const n = pl.n;
+  for (let y = 0; y < n; y++) fft1(dre, dim, y * n, pl, inverse);
+  for (let y = 0; y < n; y++) {
+    const r = y * n;
+    for (let x = 0; x < n; x++) { tre[x * n + y] = dre[r + x]; tim[x * n + y] = dim[r + x]; }
+  }
+  for (let y = 0; y < n; y++) fft1(tre, tim, y * n, pl, inverse);
+  for (let y = 0; y < n; y++) {
+    const r = y * n;
+    for (let x = 0; x < n; x++) { dre[r + x] = tre[x * n + y]; dim[r + x] = tim[x * n + y]; }
+  }
+  if (inverse) {
+    const inv = 1 / (n * n);
+    for (let i = 0, nn = n * n; i < nn; i++) { dre[i] *= inv; dim[i] *= inv; }
+  }
+}
+
+// ------------------------------------------------------------------- solver
+class Sim {
+  constructor(n) {
+    this.n = n;
+    const nn = n * n;
+    this.k2 = new Float64Array(nn); this.kx = new Float64Array(nn); this.ky = new Float64Array(nn);
+    this.mask = new Uint8Array(nn);
+    const keep = (2 / 3) * (n / 2);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const i = y * n + x;
+        const a = x <= n / 2 ? x : x - n;
+        const b = y <= n / 2 ? y : y - n;
+        this.kx[i] = a; this.ky[i] = b;
+        this.k2[i] = Math.max(a * a + b * b, 1e-12);
+        this.mask[i] = (Math.abs(a) > keep || Math.abs(b) > keep) ? 1 : 0;
+      }
+    }
+    this.k2[0] = 1;
+    this.sre = new Float64Array(nn); this.sim = new Float64Array(nn);
+    this.kre = new Float64Array(nn); this.kim = new Float64Array(nn);
+    this.mre = new Float64Array(nn); this.mim = new Float64Array(nn);
+    this.bre = new Float64Array(nn); this.bim = new Float64Array(nn);
+    this.wr = new Float64Array(nn); this.wi = new Float64Array(nn);
+    this.tre = new Float64Array(nn); this.tim = new Float64Array(nn);
+    this.u = new Float64Array(nn); this.v = new Float64Array(nn); this.w = new Float64Array(nn);
+    this.dxw = new Float64Array(nn); this.dyw = new Float64Array(nn);
+    this.pl = mkPlan(n);
+    this.dt = 0.002; this.nu = 1e-4; this.steps = 0;
+    this.seed();
+  }
+
+  seed() {
+    const n = this.n;
+    const idx = (a, b) => (((b + n) % n) * n) + ((a + n) % n);
+    const put = (a, b, re, im) => { const i = idx(a, b); this.sre[i] = re; this.sim[i] = im; };
+    put(1, 1, 2.0, 0.0);
+    put(-1, -1, 2.0, -0.0);
+    put(2, 3, 1.0, 0.5);
+    put(-2, -3, 1.0, -0.5);
+    put(3, -2, 0.8, -0.3);
+    put(-3, 2, 0.8, 0.3);
+  }
+
+  rhs(srcRe, srcIm, dstRe, dstIm) {
+    const n = this.n, nn = n * n;
+    const k2 = this.k2, kx = this.kx, ky = this.ky, mask = this.mask;
+    const wr = this.wr, wi = this.wi, tre = this.tre, tim = this.tim;
+    const u = this.u, v = this.v, w = this.w, dxw = this.dxw, dyw = this.dyw;
+    const pl = this.pl;
+    let i, pr, pi;
+
+    // u  (uh = -i ky psi)
+    for (i = 0; i < nn; i++) {
+      if (i === 0) { pr = 0; pi = 0; } else { const d = k2[i]; pr = srcRe[i] / d; pi = srcIm[i] / d; }
+      const b = ky[i];
+      wr[i] = pi * b; wi[i] = -pr * b;
+    }
+    fft2(wr, wi, tre, tim, pl, true);
+    u.set(wr);
+
+    // v  (vh = +i kx psi)
+    for (i = 0; i < nn; i++) {
+      if (i === 0) { pr = 0; pi = 0; } else { const d = k2[i]; pr = srcRe[i] / d; pi = srcIm[i] / d; }
+      const a = kx[i];
+      wr[i] = -pi * a; wi[i] = pr * a;
+    }
+    fft2(wr, wi, tre, tim, pl, true);
+    v.set(wr);
+
+    // omega
+    wr.set(srcRe); wi.set(srcIm);
+    fft2(wr, wi, tre, tim, pl, true);
+    w.set(wr);
+
+    // dx omega
+    for (i = 0; i < nn; i++) { const a = kx[i]; wr[i] = -a * srcIm[i]; wi[i] = a * srcRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true);
+    dxw.set(wr);
+
+    // dy omega
+    for (i = 0; i < nn; i++) { const b = ky[i]; wr[i] = -b * srcIm[i]; wi[i] = b * srcRe[i]; }
+    fft2(wr, wi, tre, tim, pl, true);
+    dyw.set(wr);
+
+    // NL = u dx(w) + v dy(w)
+    for (i = 0; i < nn; i++) dxw[i] = u[i] * dxw[i] + v[i] * dyw[i];
+    wr.set(dxw);
+    for (i = 0; i < nn; i++) wi[i] = 0;
+    fft2(wr, wi, tre, tim, pl, false);
+
+    for (i = 0; i < nn; i++) {
+      if (mask[i]) { dstRe[i] = 0; dstIm[i] = 0; }
+      else { dstRe[i] = -wr[i]; dstIm[i] = -wi[i]; }
+    }
+  }
+
+  step() {
+    const dt = this.dt, nn = this.n * this.n;
+    const sre = this.sre, sim = this.sim, kre = this.kre, kim = this.kim;
+    const mre = this.mre, mim = this.mim, bre = this.bre, bim = this.bim;
+    let i;
+    this.rhs(sre, sim, kre, kim);
+    for (i = 0; i < nn; i++) { mre[i] = sre[i] + kre[i] * dt; mim[i] = sim[i] + kim[i] * dt; }
+    this.rhs(mre, mim, bre, bim);
+    for (i = 0; i < nn; i++) {
+      sre[i] += 0.5 * dt * (kre[i] + bre[i]);
+      sim[i] += 0.5 * dt * (kim[i] + bim[i]);
+    }
+    for (i = 1; i < nn; i++) {
+      const f = Math.exp(-this.nu * this.k2[i] * dt);
+      sre[i] *= f; sim[i] *= f;
+    }
+    sre[0] = 0; sim[0] = 0;
+    this.steps++;
+  }
+
+  checksum() {
+    const n = this.n, inv = 1 / (n * n);
+    let acc = 0;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const i = y * n + x;
+        const w = (y * 7919 + x * 104729) % 997;
+        acc += (this.sre[i] + this.sim[i]) * w;
+      }
+    }
+    return acc * inv;
+  }
+}
+
+// --------------------------------------------------------------- benchmarks
+let wasm = null;
+
+async function loadWasm() {
+  const url = "bench/target/wasm32-unknown-unknown/release/benchcore.wasm";
+  const buf = await (await fetch(url)).arrayBuffer();
+  const { instance } = await WebAssembly.instantiate(buf, {});
+  return instance.exports;
+}
+
+function timeJs(n, steps) {
+  const s = new Sim(n);
+  for (let i = 0; i < 5; i++) s.step();
+  const t0 = performance.now();
+  for (let i = 0; i < steps; i++) s.step();
+  const t1 = performance.now();
+  return { ms: (t1 - t0) / steps, checksum: s.checksum() };
+}
+
+function timeWasm(n, steps) {
+  const p = wasm.sim_new(n);
+  wasm.sim_step(p, 5);
+  const t0 = performance.now();
+  wasm.sim_step(p, steps);
+  const t1 = performance.now();
+  return { ms: (t1 - t0) / steps, checksum: wasm.sim_check(p) };
+}
+
+function timeBlit(n, frames) {
+  const off = document.createElement("canvas");
+  off.width = n; off.height = n;
+  const octx = off.getContext("2d");
+  const img = octx.createImageData(n, n);
+  for (let i = 0; i < n * n; i++) { img.data[i * 4] = 40; img.data[i * 4 + 1] = 160; img.data[i * 4 + 2] = 220; img.data[i * 4 + 3] = 255; }
+  const dest = document.getElementById("view");
+  const dctx = dest.getContext("2d");
+  for (let f = 0; f < 5; f++) { octx.putImageData(img, 0, 0); dctx.drawImage(off, 0, 0, dest.width, dest.height); }
+  const t0 = performance.now();
+  for (let f = 0; f < frames; f++) { octx.putImageData(img, 0, 0); dctx.drawImage(off, 0, 0, dest.width, dest.height); }
+  const t1 = performance.now();
+  return (t1 - t0) / frames;
+}
+
+async function runAll(sizes, steps) {
+  wasm = wasm || await loadWasm();
+  const rows = [];
+  for (const n of sizes) {
+    const js = timeJs(n, steps);
+    const wa = timeWasm(n, steps);
+    const blit = timeBlit(n, 60);
+    rows.push({ n, steps, js_ms: js.ms, wasm_ms: wa.ms, blit_ms: blit, js_sum: js.checksum, wa_sum: wa.checksum });
+  }
+  return rows;
+}
+
+// ------------------------------------------------------------------- render
+function fmt(x, d) { return x.toFixed(d === undefined ? 4 : d); }
+
+function render(rows, nativeRows) {
+  let h = '<table><tr><th>grid</th><th>plain JS</th><th>wasm</th><th>JS / wasm</th>' +
+          (nativeRows ? '<th>native Rust</th><th>JS / native</th>' : '') +
+          '<th>canvas blit</th><th>JS step fps</th></tr>';
+  for (const r of rows) {
+    const speedup = r.js_ms / r.wasm_ms;
+    let nat = '';
+    if (nativeRows) {
+      const m = nativeRows.find(v => v.n === r.n);
+      nat = '<td>' + fmt(m.ms) + ' ms</td><td>' + fmt(r.js_ms / m.ms, 2) + 'x</td>';
+    }
+    h += '<tr><td>' + r.n + '&sup2;</td><td>' + fmt(r.js_ms) + ' ms</td><td>' + fmt(r.wasm_ms) +
+         ' ms</td><td>' + fmt(speedup, 2) + 'x</td>' + nat +
+         '<td>' + fmt(r.blit_ms, 2) + ' ms</td><td>' + fmt(1000 / r.js_ms, 1) + '</td></tr>';
+  }
+  h += '</table>';
+  h += '<pre>checksums (must agree across JS/wasm/native)\n';
+  for (const r of rows) h += '  n=' + r.n + '  js=' + r.js_sum.toExponential(10) + '  wasm=' + r.wa_sum.toExponential(10) + '\n';
+  h += '</pre>';
+  document.getElementById('out').innerHTML = h;
+}
+
+window.BENCH = { runAll, render, timeJs, timeWasm, timeBlit, loadWasm, setWasm: w => { wasm = w; } };
+</script>
+</body>
+</html>
