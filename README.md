@@ -9,10 +9,56 @@
 |---|---|
 | `turbulence.html` | the six-scene **flow** view, in the browser: one self-contained HTML file, plain JS, 128^2 spectral solver |
 | `brine-shrimp.html` | the **organism** view: the brine shrimp itself, metachronal legs, schooling, dye, in one self-contained HTML file |
-| `src/` (`turb2d`) | the original native Rust/Windows app, same six scenes at ~3x the browser speed |
+| `src/` (`turb2d`) | the native Rust/Windows app, same six scenes at ~3x the browser speed - **FROZEN** as the native reference, see below |
 
 The two HTML files are a matched pair and cross-link to each other. No
 dependencies, no build step, no server: double-click either one.
+
+### `src/` is frozen (decided 2026-10-15)
+
+`turbulence.html` is the lab that still moves; the native app is kept as the
+fast local reference and as the build whose numbers the "Verified" block below
+publishes. Porting the browser version's remaining features across is
+deliberately **not** happening, and the deltas are listed rather than hidden:
+
+- **Ported** in the 2026-10-15 pass, because a published claim rested on them:
+  the 2/3 dealiasing on the dye advection (`turbulence.html` always applied it
+  to the passive scalar; `src/solver.rs` did not, so the barrier dye was
+  aliased here) and the measured rod caveat, which now names the numbers
+  instead of asserting "the reversal is not guaranteed".
+- **Not ported**, deliberately: named scene presets, the runtime resolution
+  selector, `Save PNG`, the dark-neutral colormap, and the barrier's
+  perturbation spin. So this build keeps the bright blue/orange vorticity map,
+  its barrier scene starts with the perturbation *off*, and its rod scene keeps
+  the original rod-at-`(pi,pi)` default - the strain node the rod caveat
+  describes. The browser lab moves the rod to `(pi,pi/2)`.
+
+The app says this itself, in the field guide entry "State of this build", so a
+user of the binary is not misled about which one is current. `RESUME.md` lists
+the divergences and the re-verify commands.
+
+### Is there a public live URL? No
+
+Checked 2026-10-15, from this repo and the GitHub account: `git remote -v` is
+empty and both commits are local-only, there is no `.github/`, no `CNAME`, no
+`docs/`, no `gh-pages` branch, no repository named `sim`, `turb2d` or
+`turbulence`, and a code search for `filename:turbulence.html` or `turb2d`
+across that account returns nothing. Nothing of this lab is published, so there
+is no live URL to link to.
+
+The cheapest honest publication, if it is ever wanted, is one commit: both HTML
+files are single files with zero external references, so they need no build
+step, no server and no workflow, and they already run from `file://`. Dropping
+`turbulence.html` and `brine-shrimp.html` into one directory of an
+already-Pages-served public repo - the user site `kevinelong.github.io` is
+public with Pages on - serves them at
+`https://kevinelong.github.io/<dir>/turbulence.html` and nothing else has to
+change. They must land in the *same* directory: they cross-link by relative
+path. Anything public carries `LICENSE.md = FSL-1.1-MIT` (source-available, not
+OSI open source - do not call it open source). Publishing is a deploy, so it
+waits for a deliberate go-ahead.
+
+
 
 Six switchable Rust/Windows simulations inspired by
 "Sea Monkeys Show Scientists How To Rewrite a Rule of Turbulence"
@@ -88,29 +134,69 @@ cargo run --release -- --one jets 15000 96 50   # one scene, optional beta overr
 ## Test
 
 ```
-node --test        # 10 tests, stdlib only, ~95 s: see RESUME.md "Tests"
+node --test        # 10 tests, stdlib only: see RESUME.md "Tests"
 ```
 
+Observed 2026-10-15: **10 tests, 10 pass, 0 fail, 0 skipped, 105.9 s** (the
+native-binary test ran rather than skipping, i.e. the exe was present and the
+published cascade signature still holds).
+
 Runs the real `Solver` lifted out of `turbulence.html` (the extraction the RESUME
-documents) plus `target/release/turb2d.exe --selftest 6000 128` when the binary is
-built - that test skips with a message naming the build command if it is not.
+documents - and that extraction is `node`, since bun is not installed here) plus
+`target/release/turb2d.exe --selftest 6000 128` when the binary is built - that
+test skips with a message naming the build command if it is not.
+
 
 ## Verified
 
-`--scenes 6000 128` (all finite):
+Re-run 2026-10-15 against the frozen native build, all rows `finite=true`, wall
+148.2 s for the six scenes with nothing else running (single core; 203.9 s in an
+earlier contended run). Five of the six rows reproduce the previously published
+block to every printed digit - the run is seeded and deterministic. The `jets`
+row did **not**: the old block printed `u/v=1.23 band=0.036`, which this build
+does not produce at its default `beta = 50`, and which contradicted this
+README's own "`u_rms/v_rms` about 1.6" prose. Corrected to the observed values:
 
 ```
-cascade   Pi_inv=-2.32e-3  band=0.041
-rod       Pi_inv=-2.18e-3  band=0.036
-swimmers  Pi_inv=-7.27e-4  umax=1.45
-mhd       Pi_inv=~0        band=1.000
-jets      u/v=1.23         band=0.036
-barrier   Pi_inv=~0        band=1.000
+--scenes 6000 128
+cascade   t=109.64 umax=2.049  E=4.8842e-01 Pi_inv=-2.3205e-03 u/v=1.03 band=0.041
+rod       t= 77.67 umax=3.351  E=7.9579e-01 Pi_inv=-2.1783e-03 u/v=1.02 band=0.036
+swimmers  t=120.00 umax=1.446  E=2.1858e-01 Pi_inv=-7.2670e-04 u/v=0.99 band=0.022
+mhd       t=120.00 umax=0.770  E=1.4774e-01 Pi_inv=+2.6e-31     u/v=999.0 band=1.000
+jets      t=120.00 umax=0.688  E=4.0907e-02 Pi_inv=-5.3559e-05 u/v=1.55 band=0.016
+barrier   t=120.00 umax=0.910  E=2.0638e-01 Pi_inv=-2.5e-29     u/v=999.0 band=1.000
 ```
 
-`--selftest 6000 128` reproduces the textbook dual cascade: `Pi(k)` negative
-and monotone through `k = 1..7` (inverse) and positive for `k >= 9` (forward),
-with the energy peak at the forcing wavenumber 8.
+`--selftest 6000 128` (64.0 s) reproduces the dual cascade:
+
+```
+n=128 t=271.97 steps=30000 dt=0.00583 umax=4.312 E=1.38224e0 samples=2400
+   k       E(k)_avg      Pi(k)_avg
+   1     1.19547e-2    -1.20680e-3
+   3     2.46806e-2    -2.06569e-3
+   6     1.30557e-2    -2.30970e-3
+   7     1.15334e-1    -1.96353e-3
+   8     3.59814e-1     4.62221e-4     <- energy peak, at kf
+   9     1.07743e-1     9.81601e-4
+  20     2.33767e-3     3.65945e-4
+  26     2.00345e-3     4.25077e-5
+  27     1.81745e-3    -4.92419e-6     <- flux falls to noise past here
+  47     5.48080e-4    -7.61924e-6
+```
+
+`Pi(k)` is negative through `k = 1..7` (the inverse cascade) and positive from
+`k = 9` up to about `k = 26` (forward), with the energy peak at the forcing
+wavenumber 8. That table is a **late-window** average (6000 burn-in steps, then
+24000 averaged - see `samples=2400` in the header), and the window matters:
+averaged from `t = 0` instead, the same flow still reads *negative* in the
+forward band (measured through the JS extraction, 15000 steps). Two corrections
+to the older wording: the inverse band is negative but **not monotone**
+(`Pi(7) = -1.96e-3` is *above* `Pi(6) = -2.31e-3`), and "positive for `k >= 9`"
+only holds to `k ~ 26` - past that `|Pi| < 2e-4`, at the level of the
+2/3-dealiased tail, and the sign flips from bin to bin. The pinned test asserts
+the bounded claim (`Pi > 0` for `k = 9..20`), which held.
+
+
 
 Per-scene UI panels: each of the six scenes starts, renders and exits cleanly.
 
@@ -175,8 +261,16 @@ so the default keeps it, and `Save PNG` covers the exact case where it matters.
 **Rod scene.** It does not reproduce the paper's 45-degree flux reversal, and the
 reason is now measured rather than assumed:
 
-- The default rod position sits in a strain *node*: |S| = 0.067 at (pi,pi) vs
-  12.0 at (pi,pi/2), a factor of 180.
+- The rod default sits in a strain *node*. Measured in the clean (laminar)
+  banded shear: |S| = 0.0000 at (pi,pi) against 5.0011 at (pi,pi/2), with the
+  ambient strain axis at exactly 45.00 deg - the qualitative claim, and a
+  cleaner contrast than the "|S| = 0.067 vs 12.0, a factor of 180" this bullet
+  used to quote. Recipe: rod scene, rod off, banded drive `bandAmp = 1.0`,
+  `nu = 0.03`, `drag = 0.10`, 4000 steps at 128^2, measured through the solver
+  extraction. The old pair does **not** reproduce under any configuration
+  recorded in these notes: at the rod scene's own `nu = 2e-5`, `drag = 0.05` the
+  banded state is unstable (`umax` 7.7 by t = 21, no clean node anywhere), and
+  in the developed turbulent state both points read |S| = 20-50.
 - Even placed correctly in a steady imposed shear (ambient strain axis a clean
   45.00 deg, rod-off flux ~1e-17 so the rod is the only source), the rod's own
   stresslet dominates the local strain, and the flux is not stationary unless
@@ -190,9 +284,20 @@ reason is now measured rather than assumed:
 So the mechanism operating here is not the alignment coupling the paper
 reports. Treat the rod as a probe, not a validated result.
 
+
 **Jets scene.** The zonal signature is real but modest at this box size (2*pi
 across): zonal fraction 2-4x the isotropic baseline, `u_rms/v_rms` about 1.6,
 stable for beta between about 20 and 120 (beta ~ 300 suppresses it again,
 because the Rossby waves outrun the eddy turnover). Visually striking
 many-banded jets need a domain many jet-widths across - a larger box than is
 simulated here.
+
+**Cost of settling either of those two.** Both need a *bigger physical box*,
+which is a solver change before it is a CPU bill: the domain is fixed to
+`[0, 2pi)^2`, so a domain many jet-widths across needs a box-length knob (a `L`,
+or every wavenumber and length scale rescaled). After that, measured on this
+machine: the native step is ~2.1 ms at 128^2 and ~99 ms at 512^2, so one 512^2
+run of 40k steps is about an hour single-core and a rod-angle x viscosity sweep
+of the ~10-12 configurations the rod negative result used is 10-15 h; 1024^2
+costs roughly 4x more per run. Not run.
+

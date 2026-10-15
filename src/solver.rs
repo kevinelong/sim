@@ -604,7 +604,14 @@ impl Solver {
         }
         fft2(&mut self.sc_b, &mut self.tmp_t, &mut self.scratch, &*self.plan_fwd, n, false);
         for i in 0..nn {
-            let mut c = self.scalar[i] - self.sc_b[i] * dt;
+            // 2/3 dealiasing on the advective term, as for the vorticity equation.
+            // turbulence.html always did this for the scalar; the native path did
+            // not, so the dye was aliased here and clean there.
+            let mut c = if self.mask[i] {
+                self.scalar[i]
+            } else {
+                self.scalar[i] - self.sc_b[i] * dt
+            };
             if i != 0 {
                 c *= (-kappa * self.k2[i] * dt).exp();
             }

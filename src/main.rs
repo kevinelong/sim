@@ -217,13 +217,26 @@ boundaries. Orange = the rod, modelled as the exact stresslet (force dipole) \
 the researchers used. The readout prints theta between the rod and the \
 stretching axis and flags it against the rule.";
 
-const ROD_CAVEAT: &str = "Honest caveat. In a fully turbulent field the local \
-strain direction is dominated by the turbulence itself and wanders tens of \
-degrees moment to moment, so a single rod does NOT cleanly flip the global \
-cascade on command. The paper gets its clean switch with a controlled quasi-2D \
-shear and statistical averaging. Here the geometry and the mechanism are \
-faithful; the reversal is not guaranteed. Judge it from the time-averaged \
-flux, ideally with the banded drive on.";
+const ROD_CAVEAT: &str = "Honest caveat, with measurements. This scene does NOT \
+reproduce the paper's clean 45-degree flux reversal, and the reasons are measured \
+rather than assumed.\n\n\
+First, this build puts the rod at (pi,pi), a strain NODE, so 'the direction of \
+maximum stretching' is meaningless at the default position: in the clean laminar \
+banded shear the node reads |S| = 0.0000 there against 5.0011 at (pi,pi/2), with \
+the ambient strain axis at exactly 45.00 deg. turbulence.html moves the rod to \
+(pi,pi/2), where the imposed strain actually is. (An older note here quoted \
+'|S| = 0.067 against 12.0'; that pair does not reproduce under any recorded \
+configuration. README.md carries the recipe that does.)\n\n\
+Second, and deeper: placed correctly in a steady imposed shear (ambient axis a \
+clean 45.00 deg, rod-off flux ~1e-17, so the rod is the only source), the rod's \
+own stresslet still dominates the local strain, and unless viscosity is high \
+enough for the rod's scale to equilibrate the flux is not stationary - \
+window-to-window scatter is 334% at nu=1e-4 and 6% at nu=5e-3.\n\n\
+In the stationary regime the flux varies smoothly by 22x with the rod's ABSOLUTE \
+angle but never changes sign, and two orientations that pure-shear symmetry says \
+must be equivalent differ by 22x. The stresslet-strain coupling predicts zero at \
+both 0 and 90 deg, yet those differ 22x - so the effect here is not the alignment \
+mechanism the paper reports. Treat the rod as a probe, not a validated result.";
 
 const SWIM_ACTIVE: &str = "Active matter: objects that move by themselves and \
 inject energy into their surroundings. Each dot is one brine-shrimp analogue - \
@@ -269,8 +282,26 @@ the perturbation off it holds (only slow diffusion). Switch the perturbation \
 on - the dipole sitting on the interface - and watch vortices tear the \
 boundary into filaments, which is mixing.";
 
+const NATIVE_FROZEN: &str = "This native build is FROZEN as the reference \
+implementation: the fast local tool, the same algorithm as turbulence.html at \
+roughly 3x the browser speed, and the build whose numbers README.md publishes. \
+turbulence.html is the lab that is still moving.\n\n\
+Ported here in the 2026-10-15 pass, because a published claim depended on them: \
+the 2/3 dealiasing on the dye advection (the browser scalar path always had it, \
+this one did not, so the barrier dye was aliased here) and the measured rod \
+caveat below.\n\n\
+Deliberately NOT ported: named presets, the runtime resolution selector, \
+Save PNG, the dark-neutral colormap, and the barrier's perturbation spin. So \
+this build keeps the bright blue/orange vorticity map, its barrier scene starts \
+with the perturbation OFF (the browser starts it on and spinning), and its rod \
+scene keeps the original rod-at-(pi,pi) default - inside the strain node the \
+caveat below describes. For the barrier's torn-interface look and for scene \
+presets, use turbulence.html. RESUME.md lists the divergences and the \
+re-verify commands.";
+
 fn notes(scene: Scene) -> Vec<(&'static str, &'static str)> {
     let mut v: Vec<(&'static str, &'static str)> = Vec::new();
+    v.push(("State of this build", NATIVE_FROZEN));
     match scene {
         Scene::Barrier => v.push(("What you are seeing", DYE_DISPLAY)),
         _ => v.push(("What you are seeing", VORT_DISPLAY)),
