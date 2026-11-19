@@ -107,8 +107,11 @@ where the browser lab moved the rod to `(pi,pi/2)`.
 
 **No.** Checked 2026-10-15 from the repo and the account:
 
-- `git remote -v` is empty - both commits (`a8bd642`, `5d24d17`) are local-only;
-  `git branch -a` shows only `master`.
+- **superseded 2026-11-19:** the lab now has a remote - `origin` is
+  `github.com/kevinelong/sim`, **private**, pushed on Kevin's instruction that every project's notes and code live in a
+  GitHub repo, private by default. That answers where the history lives; it does not publish anything: a private repo
+  serves no Pages site, so **there is still no public URL**, and the paragraph below about `kevinelong.github.io` is the
+  path if a public one is ever wanted.
 - No `.github/`, no workflow, no `CNAME`, no `docs/`, no `gh-pages` branch, no
   Pages configuration of any kind in the repo.
 - Nothing of it is published elsewhere either: `gh api repos/kevinelong/{sim,
