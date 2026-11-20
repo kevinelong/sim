@@ -59,38 +59,20 @@ The app says this itself, in the field guide entry "State of this build", so a
 user of the binary is not misled about which one is current. `RESUME.md` lists
 the divergences and the re-verify commands.
 
-### Is there a public live URL? No
+### Live page - published 2026-11-19
 
-Checked 2026-10-15, from this repo and the GitHub account: `git remote -v` is
-empty and both commits are local-only, there is no `.github/`, no `CNAME`, no
-`docs/`, no `gh-pages` branch, no repository named `sim`, `turb2d` or
-`turbulence`, and a code search for `filename:turbulence.html` or `turb2d`
-across that account returns nothing. Nothing of this lab is published, so there
-is no live URL to link to.
+| view | URL |
+|---|---|
+| flow, six 2D scenes | <https://kevinelong.github.io/sim/turbulence.html> |
+| organism, the brine shrimp | <https://kevinelong.github.io/sim/brine-shrimp.html> |
 
-The cheapest honest publication, if it is ever wanted, is one commit: both HTML
-files are single files with zero external references, so they need no build
-step, no server and no workflow, and they already run from `file://`. Dropping
-`turbulence.html` and `brine-shrimp.html` into one directory of an
-already-Pages-served public repo - the user site `kevinelong.github.io` is
-public with Pages on - serves them at
-`https://kevinelong.github.io/<dir>/turbulence.html` and nothing else has to
-change. They must land in the *same* directory: they cross-link by relative
-path. Anything public carries `LICENSE.md = FSL-1.1-MIT` (source-available, not
-OSI open source - do not call it open source). Publishing is a deploy, so it
-waits for a deliberate go-ahead.
+Served by GitHub Pages from this repository's `master` **root** - no build step, no workflow, no server, because each
+view is one self-contained file with zero external references. Both files must stay in the same directory: they cross-link
+by relative path. The repository is public since 2026-11-19 and carries `LICENSE.md = FSL-1.1-MIT` (source-available, not
+OSI open source - please do not call it open source).
 
-
-
-Six switchable Rust/Windows simulations inspired by
-"Sea Monkeys Show Scientists How To Rewrite a Rule of Turbulence"
-(Quanta Magazine, 2026-10-02), on Si & Fang's work at the University of
-Pittsburgh (PNAS Nexus 2024; Science Advances 2025).
-
-Every scene runs the same real, forced 2D incompressible turbulent flow and
-reports the spectral energy flux `Pi(k)` live. What changes is the physics
-layered on top, the knobs in the left panel, and the field guide in the right
-panel.
+The earlier answer to this question (checked 2026-10-15) was "no", and it was right then: no remote, no `.github/`, no
+`gh-pages` branch, no repository named `sim`. That commit is `717d556`; this section is the change since.
 
 ## Scenes
 

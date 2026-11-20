@@ -117,35 +117,16 @@ appears where the paper's claim is measured).
    -2.31e-3`, and the positive band ends near k = 26, past which `|Pi| < 2e-4`
    and the sign flips bin to bin.
 
-## The lab has no public URL (Kevin's standing question, answered)
+## The lab is published (Kevin's standing question, answered 2026-11-19)
 
-**No.** Checked 2026-10-15 from the repo and the account:
-
-- **superseded 2026-11-19:** the lab now has a remote - `origin` is
-  `github.com/kevinelong/sim`, **private**, pushed on Kevin's instruction that every project's notes and code live in a
-  GitHub repo, private by default. That answers where the history lives; it does not publish anything: a private repo
-  serves no Pages site, so **there is still no public URL**, and the paragraph below about `kevinelong.github.io` is the
-  path if a public one is ever wanted.
-- No `.github/`, no workflow, no `CNAME`, no `docs/`, no `gh-pages` branch, no
-  Pages configuration of any kind in the repo.
-- Nothing of it is published elsewhere either: `gh api repos/kevinelong/{sim,
-  turb2d,turbulence,sim-lab}` all 404, and a code search scoped to the account
-  returns `total_count = 0` for both `filename:turbulence.html` and `turb2d`.
-  (`brine-shrimp.html` has 0 matches on public GitHub overall.)
-
-So there is no live URL to link to, and no published single-file HTML anywhere.
-
-**Cheapest honest publication, if it is wanted:** the two HTML files are single
-files with zero external references, so they already run from `file://` and need
-no build, no bundler, no server and no workflow. Dropping `turbulence.html` and
-`brine-shrimp.html` into one directory of an already Pages-served public repo -
-`kevinelong.github.io` is public with Pages enabled - serves them at
-`https://kevinelong.github.io/<dir>/turbulence.html` in a single commit. They
-must go in the *same* directory: they cross-link by relative path. Required
-before anything is made public: `LICENSE.md` = FSL-1.1-MIT (FSL is
-source-available, NOT OSI open source - never describe it as open source).
-Publishing is a deploy and a publicity decision, so it waits for an explicit
-go-ahead; nothing was published or made public here.
+- **Live:** <https://kevinelong.github.io/sim/turbulence.html> and `.../brine-shrimp.html`, from this repository's
+  `master` root via GitHub Pages. One self-contained file each: no build, no workflow, no server.
+- **Repository:** `kevinelong/sim`, **public** since 2026-11-19, `LICENSE.md = FSL-1.1-MIT` (template filled with
+  "2026 Kevin Ernest Long"; Cargo.toml points at it with `license-file`, since FSL has no SPDX id). Source-available,
+  **not OSI open source** - do not describe it as open source.
+- The 2026-10-15 answer ("no") was correct then and is preserved in commit `717d556`. What changed is only the `gh repo
+  edit --visibility public` and the Pages enablement, not the files.
+- Publishing is a deploy: **the article link and the licence now ship with the pages**, so a forum post can point at them.
 
 ## Verified numbers (observed 2026-10-15, this box)
 

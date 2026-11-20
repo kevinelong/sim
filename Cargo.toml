@@ -1,6 +1,7 @@
 [package]
 name = "turb2d"
 version = "0.1.0"
+license-file = "LICENSE.md"
 edition = "2024"
 
 [dependencies]
