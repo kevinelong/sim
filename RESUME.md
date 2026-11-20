@@ -85,7 +85,7 @@ comments are rejected), so it is a possible venue with an account - not a "no co
 ## Links carry pictures, and scenes deep-link (2026-11-19)
 
 Every link on `index.html` now arrives with a thumbnail: the two views are real captures (`thumbs/flow.png`,
-`thumbs/shrimp.png`, cropped to the field area of a 1280x800 headless Chrome screenshot of the actual page), and the paper,
+`thumbs/shrimp.png`, cropped to the field area of a 1280x800 headless Chrome screenshot of the actual page - the flow one taken from `?scene=cascade&warm=1500`, because the first capture at t=0.1 was soft and its eddies too large to survive downscaling)), and the paper,
 the Quanta account and the repository get drawn cards (`thumbs/paper.png`, `quanta.png`, `repo.png` - the paper card is the
 rod diagram in the app's own colours). Open Graph and Twitter-card metadata point at those images on all three pages, so a
 posted link previews rather than showing a blank box.
