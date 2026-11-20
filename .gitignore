@@ -26,3 +26,7 @@ Thumbs.db
 /target
 /bench/target
 /dist
+
+# scratch captures, never published
+thumbs/raw-*.png
+thumbs/zoom-*.png

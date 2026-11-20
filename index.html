@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A 2D turbulence lab - two views of one paper</title>
+<meta name="description" content="Two self-contained browser views of the question in Si and Fang's brine-shrimp paper: a 128^2 spectral solver of 2D turbulence, and the animal itself.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="A 2D turbulence lab - two views of one paper">
+<meta property="og:description" content="Six 2D scenes with live spectral energy flux, and the brine shrimp whose stroke the rod stands in for. Single HTML files, no build step.">
+<meta property="og:image" content="https://kevinelong.github.io/sim/thumbs/flow.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="676">
+<meta property="og:url" content="https://kevinelong.github.io/sim/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kevinelong.github.io/sim/thumbs/flow.png">
 <style>
   :root{--ink:#cfe6f5;--dim:#7fa2bd;--accent:#7fd0ff;--bg:#08131c;--line:rgba(140,200,240,.2)}
   html,body{margin:0;height:100%}
@@ -14,10 +24,23 @@
   h1 span{color:var(--dim);font-weight:400}
   p{margin:.8rem 0}
   a{color:var(--accent)}
-  ul{list-style:none;padding:0;margin:1.2rem 0}
-  li{padding:.7rem 1rem;border:1px solid var(--line);border-radius:10px;margin:.5rem 0}
-  li b{display:block;font-weight:600}
+  ul{list-style:none;padding:0;margin:1.2rem 0;display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+  @media (max-width:720px){ ul{grid-template-columns:1fr} }
+  li{padding:0;border:1px solid var(--line);border-radius:10px;margin:0;overflow:hidden}
+  li.out{display:flex;gap:.8rem;align-items:center;padding:.6rem}
+  li a.thumb{display:block;line-height:0}
+  li a.thumb img{width:100%;height:auto;display:block;opacity:.95}
+  li a.thumb:hover img{opacity:1}
+  li.out a.thumb{flex:0 0 44%;border-radius:6px;overflow:hidden}
+  .body{padding:.7rem .9rem .8rem}
+  .body b{display:block;font-weight:600;margin-bottom:.2rem}
   small{color:var(--dim)}
+  .links{margin:1.4rem 0 0;display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  @media (max-width:720px){ .links{grid-template-columns:1fr} }
+  .card{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .card:hover{border-color:var(--dim)}
+  .card img{width:100%;height:auto;display:block}
+  .links span{display:block;padding:.5rem .7rem;font-size:.9rem;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -26,19 +49,32 @@
   <p>Two self-contained browser views of the same question: what a small swimmer does to a two-dimensional
      turbulent flow. No build step, no dependencies, no server - each is one HTML file.</p>
   <ul>
-    <li><b><a href="turbulence.html">The flow view</a></b>
+    <li><a class="thumb" href="turbulence.html"><img src="thumbs/flow.png" alt="Vorticity field of the flow view: blue and orange eddies"></a>
+      <div class="body"><b><a href="turbulence.html">The flow view</a></b>
         Six 2D scenes - inverse cascade, a rod as a force dipole, jets, a barrier - with the spectral energy
-        flux plotted live. <small>128&sup2; spectral solver, plain JS.</small></li>
-    <li><b><a href="brine-shrimp.html">The organism view</a></b>
-        The brine shrimp itself: metachronal legs, schooling, dye. <small>The animal whose stroke is the
-        force dipole the flow view models.</small></li>
+        flux plotted live. <small>128&sup2; spectral solver, plain JS.</small></div></li>
+    <li><a class="thumb" href="brine-shrimp.html"><img src="thumbs/shrimp.png" alt="The organism view: brine shrimp swimming with dye"></a>
+      <div class="body"><b><a href="brine-shrimp.html">The organism view</a></b>
+        The brine shrimp itself: metachronal legs, schooling, dye. <small>The animal whose stroke is the force
+        dipole the flow view models.</small></div></li>
   </ul>
-  <p>The paper these were written against: X. Si and L. Fang,
-     <a href="https://doi.org/10.1093/pnasnexus/pgae056">"Biologically generated turbulent energy flux in shear flow
-     depends on tensor geometry"</a>, <em>PNAS Nexus</em> 3(2), pgae056, 2024
-     (<a href="https://arxiv.org/abs/2310.03226">arXiv:2310.03226</a>);
-     popular account: <a href="https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/">Quanta,
-     2 Oct 2026</a>.</p>
+  <p>The paper these were written against, and where it was read first:</p>
+  <div class="links">
+    <div class="card">
+      <a href="https://doi.org/10.1093/pnasnexus/pgae056"><img src="thumbs/paper.png" alt="Diagram: strain axis, the two 45-degree boundaries, and the dipole"></a>
+      <span><a href="https://doi.org/10.1093/pnasnexus/pgae056">The paper</a> - Si and Fang, <em>PNAS Nexus</em> 3(2),
+      pgae056, 2024 (<a href="https://arxiv.org/abs/2310.03226">preprint</a>)</span>
+    </div>
+    <div class="card">
+      <a href="https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/"><img src="thumbs/quanta.png" alt="Quanta Magazine, 2 October 2026"></a>
+      <span><a href="https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/">The account</a>
+      - Stephen Ornes, <em>Quanta</em>, 2 October 2026</span>
+    </div>
+    <div class="card">
+      <a href="https://github.com/kevinelong/sim"><img src="thumbs/repo.png" alt="The two views side by side over the repository name"></a>
+      <span><a href="https://github.com/kevinelong/sim">Source</a> - github.com/kevinelong/sim (FSL-1.1-MIT)</span>
+    </div>
+  </div>
   <p><small>What is whose: of the six scenes, three follow the article's setup (the rod's stresslet, the banded drive of
      their magnet-and-current channel, and a swarm that extends it), the dual cascade is textbook background, and the
      beta-plane jets and the transport barrier are our own additions. The paper itself is a laboratory experiment with real

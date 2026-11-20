@@ -66,6 +66,12 @@ the divergences and the re-verify commands.
 | flow, six 2D scenes | <https://kevinelong.github.io/sim/turbulence.html> |
 | organism, the brine shrimp | <https://kevinelong.github.io/sim/brine-shrimp.html> |
 
+A scene can be deep-linked and pre-warmed, which is what the thumbnails and any forum post use:
+`?scene=rod&warm=1200` opens the rod at a developed state (`scene` is one of `cascade`, `rod`, `swimmers`, `mhd`, `jets`,
+`barrier`; `warm` is a step count, clamped to 20,000). The landing page carries a thumbnail per link - real captures of both
+views in `thumbs/`, and three drawn cards for the paper, the Quanta account and the repository - plus Open Graph metadata, so
+a shared link previews with an image.
+
 Served by GitHub Pages from this repository's `master` **root** - no build step, no workflow, no server, because each
 view is one self-contained file with zero external references. Both files must stay in the same directory: they cross-link
 by relative path. The repository is public since 2026-11-19 and carries `LICENSE.md = FSL-1.1-MIT` (source-available, not

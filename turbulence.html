@@ -3,6 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Six 2D turbulence scenes with live spectral energy flux: inverse cascade, a rod as a force dipole, jets, MHD drive, a transport barrier.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Turbulence Lab - six 2D scenes">
+<meta property="og:description" content="Six 2D turbulence scenes with live spectral energy flux: inverse cascade, a rod as a force dipole, jets, MHD drive, a transport barrier.">
+<meta property="og:image" content="https://kevinelong.github.io/sim/thumbs/flow.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="676">
+<meta property="og:url" content="https://kevinelong.github.io/sim/turbulence.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kevinelong.github.io/sim/thumbs/flow.png">
 <title>Turbulence Lab - six 2D scenes</title>
 <style>
   :root{
@@ -1239,7 +1249,13 @@ window.addEventListener("keydown", e => {
 });
 
 setSize();
-switchScene("cascade");
+// A scene can be deep-linked and pre-warmed: ?scene=rod&warm=1200 opens the rod at a developed state.
+// Both are read once, clamped, and ignored if they name no scene - a bad link must never leave a blank lab.
+const QS = new URLSearchParams(location.search);
+const wanted = QS.get("scene");
+switchScene(SCENES[wanted] ? wanted : "cascade");
+const warm = Math.max(0, Math.min(20000, +(QS.get("warm") || 0) | 0));
+if (warm) { for (let i = 0; i < warm; i++) solver.step(); }
 requestAnimationFrame(frame);
 
 // expose for verification

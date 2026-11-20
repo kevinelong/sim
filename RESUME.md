@@ -82,6 +82,18 @@ numerical analogue at 128^2, not a replication.
 Correction to an earlier answer in this session: the Quanta article **does** have a moderated comment section (self-promotional
 comments are rejected), so it is a possible venue with an account - not a "no comments" page.
 
+## Links carry pictures, and scenes deep-link (2026-11-19)
+
+Every link on `index.html` now arrives with a thumbnail: the two views are real captures (`thumbs/flow.png`,
+`thumbs/shrimp.png`, cropped to the field area of a 1280x800 headless Chrome screenshot of the actual page), and the paper,
+the Quanta account and the repository get drawn cards (`thumbs/paper.png`, `quanta.png`, `repo.png` - the paper card is the
+rod diagram in the app's own colours). Open Graph and Twitter-card metadata point at those images on all three pages, so a
+posted link previews rather than showing a blank box.
+
+To make the capture show a developed state, `turbulence.html` gained a deep link: `?scene=<key>&warm=<steps>` (clamped to
+20,000, unknown scene falls back to `cascade`). The 10 node tests still pass; the boot block is outside the sections they
+extract.
+
 ## Open items
 
 1. **CLOSED 2026-10-15** - frozen, above.
