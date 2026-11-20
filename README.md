@@ -61,10 +61,10 @@ the divergences and the re-verify commands.
 
 ### Live page - published 2026-11-19
 
-| view | URL |
-|---|---|
-| flow, six 2D scenes | <https://kevinelong.github.io/sim/turbulence.html> |
-| organism, the brine shrimp | <https://kevinelong.github.io/sim/brine-shrimp.html> |
+| | view | URL |
+|---|---|---|
+| <img src="thumbs/flow.png" width="260" alt="vorticity field of the flow view"> | flow, six 2D scenes | <https://kevinelong.github.io/sim/turbulence.html> |
+| <img src="thumbs/shrimp.png" width="260" alt="brine shrimp swimming in dye"> | organism, the brine shrimp | <https://kevinelong.github.io/sim/brine-shrimp.html> |
 
 A scene can be deep-linked and pre-warmed, which is what the thumbnails and any forum post use:
 `?scene=rod&warm=1200` opens the rod at a developed state (`scene` is one of `cascade`, `rod`, `swimmers`, `mhd`, `jets`,
