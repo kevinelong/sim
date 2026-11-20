@@ -36,27 +36,6 @@ swimmer), and the question of whether a biological agent reorders a 2D inverse c
 "Known limitations" - the rod default sat in a strain node, the coupling is viscosity-sensitive, and the flux varies 22x
 with the rod's absolute angle without ever changing sign.
 
-## What this is, and what it is not
-
-The paper is a laboratory experiment: a thin film of salt water over magnets, a current that drives a banded shear, and real
-*Artemia* swimming through it - plus a tensor-geometry argument for the angle dependence and collaborators' simulations.
-This repository is not a re-implementation of that apparatus. It is a pseudo-spectral solver at 128^2 with one synthetic force
-dipole standing in for the swimmer, and it was written to look at the mechanism at interactive speed.
-
-| of the six scenes | provenance |
-|---|---|
-| rod / 45-degree switch | **the article's** - the stresslet swimmer, and the rod array of the 2025 follow-up |
-| MHD channel | **the article's apparatus drive** - `f_x = A cos(k y)` stands in for their magnet-and-current channel |
-| brine-shrimp swarm | **an extension of ours** - the article motivates billions of swimmers; its experiments used one at a time |
-| dual cascade | **the textbook background** the article describes (Kraichnan and Batchelor), not their experiment |
-| beta-plane zonal jets | **ours, not in the article** - Rhines arrest, added to see what stops a cascade |
-| transport barrier | **ours** - the article names the barrier as a question the group is still exploring, so nothing here reproduces a result |
-
-Incomplete by construction, and that is the point of publishing it this way: no laboratory, no real swimmers, no parameter
-sweeps, a box two eddies wide, and one measured failure - the 45-degree reversal does not reproduce here (see
-"Known limitations" for the numbers and why).
-
-
 ### `src/` is frozen (decided 2026-10-15)
 
 `turbulence.html` is the lab that still moves; the native app is kept as the
@@ -94,6 +73,27 @@ OSI open source - please do not call it open source).
 
 The earlier answer to this question (checked 2026-10-15) was "no", and it was right then: no remote, no `.github/`, no
 `gh-pages` branch, no repository named `sim`. That commit is `717d556`; this section is the change since.
+
+## What this is, and what it is not
+
+The paper is a laboratory experiment: a thin film of salt water over magnets, a current that drives a banded shear, and real
+*Artemia* swimming through it - plus a tensor-geometry argument for the angle dependence and collaborators' simulations.
+This repository is not a re-implementation of that apparatus. It is a pseudo-spectral solver at 128^2 with one synthetic force
+dipole standing in for the swimmer, and it was written to look at the mechanism at interactive speed.
+
+| of the six scenes | provenance |
+|---|---|
+| rod / 45-degree switch | **the article's** - the stresslet swimmer, and the rod array of the 2025 follow-up |
+| MHD channel | **the article's apparatus drive** - `f_x = A cos(k y)` stands in for their magnet-and-current channel |
+| brine-shrimp swarm | **an extension of ours** - the article motivates billions of swimmers; its experiments used one at a time |
+| dual cascade | **the textbook background** the article describes (Kraichnan and Batchelor), not their experiment |
+| beta-plane zonal jets | **ours, not in the article** - Rhines arrest, added to see what stops a cascade |
+| transport barrier | **ours** - the article names the barrier as a question the group is still exploring, so nothing here reproduces a result |
+
+Incomplete by construction, and that is the point of publishing it this way: no laboratory, no real swimmers, no parameter
+sweeps, a box two eddies wide, and one measured failure - the 45-degree reversal does not reproduce here (see
+"Known limitations" for the numbers and why).
+
 
 ## Scenes
 
