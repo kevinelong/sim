@@ -69,6 +69,19 @@ appears where the paper's claim is measured).
   Turbulence", **2026-10-02** - 12 days before these HTML files, which is the whole of the evidence for it being the source.
   If it was a different write-up, that one line is corrected and nothing else changes.
 
+## Scope, written down 2026-11-19
+
+README carries a new "What this is, and what it is not" section and `index.html` a short version of it. Asked whether the text
+says the lab was inspired by the article but is incomplete and includes items the article never had. It said the first, said
+the second only per scene, and never said the third. Now a provenance table: rod and MHD channel are the article's (stresslet;
+the banded drive of the magnet-and-current channel), the swarm is an extension, the dual cascade is textbook background, and
+**beta-plane jets and the transport barrier are ours** - the article names the barrier as a question the group is still
+exploring, so nothing here reproduces it. Also stated: the paper is a laboratory experiment with real *Artemia*; this is a
+numerical analogue at 128^2, not a replication.
+
+Correction to an earlier answer in this session: the Quanta article **does** have a moderated comment section (self-promotional
+comments are rejected), so it is a possible venue with an account - not a "no comments" page.
+
 ## Open items
 
 1. **CLOSED 2026-10-15** - frozen, above.
