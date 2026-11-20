@@ -217,7 +217,7 @@ boundaries. Orange = the rod, modelled as the exact stresslet (force dipole) \
 the researchers used. The readout prints theta between the rod and the \
 stretching axis and flags it against the rule.";
 
-const ROD_CAVEAT: &str = "Honest caveat, with measurements. This scene does NOT \
+const ROD_CAVEAT: &str = "Caveat, with measurements. This scene does NOT \
 reproduce the paper's clean 45-degree flux reversal, and the reasons are measured \
 rather than assumed.\n\n\
 First, this build puts the rod at (pi,pi), a strain NODE, so 'the direction of \
@@ -265,7 +265,7 @@ single giant vortex, energy is arrested at the Rhines wavenumber \
 k_b = sqrt(beta / 2U), and the flow develops alternating east-west (zonal) \
 bands - the mechanism behind Jupiter's banded atmosphere and its Great Red \
 Spot. Raise beta and the arrest scale moves to smaller scales.\n\n\
-Stated honestly: in this box (2*pi across) the zonal signature is real but \
+In this box (2*pi across) the zonal signature is real but \
 modest. Measured, the zonal energy fraction climbs to roughly 2 to 4 times the \
 isotropic baseline and u_rms/v_rms to about 1.6, and the effect is stable for \
 beta between about 20 and 120. Beta too large (say 300) kills it again, \
