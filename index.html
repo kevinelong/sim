@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A 2D turbulence lab - two views of one paper</title>
+<style>
+  :root{--ink:#cfe6f5;--dim:#7fa2bd;--accent:#7fd0ff;--bg:#08131c;--line:rgba(140,200,240,.2)}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       display:flex;align-items:center;justify-content:center;padding:24px}
+  main{max-width:44rem}
+  h1{font-size:1.5rem;margin:0 0 .2rem;font-weight:600}
+  h1 span{color:var(--dim);font-weight:400}
+  p{margin:.8rem 0}
+  a{color:var(--accent)}
+  ul{list-style:none;padding:0;margin:1.2rem 0}
+  li{padding:.7rem 1rem;border:1px solid var(--line);border-radius:10px;margin:.5rem 0}
+  li b{display:block;font-weight:600}
+  small{color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+  <h1>A 2D turbulence lab <span>- two views of one paper</span></h1>
+  <p>Two self-contained browser views of the same question: what a small swimmer does to a two-dimensional
+     turbulent flow. No build step, no dependencies, no server - each is one HTML file.</p>
+  <ul>
+    <li><b><a href="turbulence.html">The flow view</a></b>
+        Six 2D scenes - inverse cascade, a rod as a force dipole, jets, a barrier - with the spectral energy
+        flux plotted live. <small>128&sup2; spectral solver, plain JS.</small></li>
+    <li><b><a href="brine-shrimp.html">The organism view</a></b>
+        The brine shrimp itself: metachronal legs, schooling, dye. <small>The animal whose stroke is the
+        force dipole the flow view models.</small></li>
+  </ul>
+  <p>The paper these were written against: X. Si and L. Fang,
+     <a href="https://doi.org/10.1093/pnasnexus/pgae056">"Biologically generated turbulent energy flux in shear flow
+     depends on tensor geometry"</a>, <em>PNAS Nexus</em> 3(2), pgae056, 2024
+     (<a href="https://arxiv.org/abs/2310.03226">arXiv:2310.03226</a>);
+     popular account: <a href="https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/">Quanta,
+     2 Oct 2026</a>.</p>
+  <p><small>Honest note: the rod scene here does <b>not</b> reproduce the paper's 45-degree flux reversal, and the
+     measurements explaining why are in the flow view's own field guide. Source and licence:
+     <a href="https://github.com/kevinelong/sim">github.com/kevinelong/sim</a>
+     (FSL-1.1-MIT - source-available, not open source).</small></p>
+</main>
+</body>
+</html>
