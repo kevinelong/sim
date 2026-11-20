@@ -251,3 +251,19 @@ test('the synthesis accuracy ladder is monotone and the live default is tight', 
   assert.ok(e1024 < 0.05, `the export path (exact 1024) must be essentially exact, got ${e1024.toFixed(2)}%`);
   assert.ok(LAB.synthMax >= 512, `synthMax must allow the measured sweet spot, got ${LAB.synthMax}`);
 });
+
+test('the injection spectrum agrees with the physical psi*S integral', () => {
+  // The per-shell injection is Re(conj(psi)*S) summed over shells, with psi = -omega/k^2. That derivation
+  // carries a normalisation constant that is easy to get wrong by a factor of nn, so it is measured against
+  // an independent path: inverse-FFT psi, multiply by the source in physical space, average over the grid.
+  const s = new LAB.Solver(32);
+  LAB.configure(s, 'mhd');   // the banded Lorentz drive - a source with a known, non-zero injection
+  s.step();
+  s.step();
+  s.diagnostics();
+  const { spectral, physical } = s.injectionCheck();
+  assert.ok(Math.abs(physical) > 0, 'the banded source must inject something for this to test anything');
+  const ratio = spectral / physical;
+  assert.ok(Math.abs(ratio - 1) < 1e-6,
+    `spectral/physical = ${ratio} (expected 1): the injection scaling is off`);
+});

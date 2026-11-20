@@ -92,6 +92,8 @@
   <div class="hr"></div>
   <label style="color:var(--dim);font-size:11px;">energy flux Pi(k), time-averaged - sign is the point</label>
   <canvas id="plotFlux" class="plot"></canvas>
+  <label style="color:var(--dim);font-size:11px;">source injection E_inj(k), time-averaged - positive feeds that scale</label>
+  <canvas id="plotInj" class="plot"></canvas>
   <label style="color:var(--dim);font-size:11px;">energy spectrum E(k), time-averaged</label>
   <canvas id="plotE" class="plot"></canvas>
 </div>
@@ -214,6 +216,7 @@ class Solver {
     this.dux = F(); this.duy = F(); this.dvx = F(); this.dvy = F();
     this.nlx = F(); this.nly = F();
     this.nlxr = F(); this.nlyi = F();
+    this.ssr = F(); this.ssi = F();   // spectrum of the scene source (curl of the body force)
     this.src = F(); this.om = F();
     this.scRe = F(); this.scIm = F(); this.scPhys = F();
     this.pl = mkPlan(n);
@@ -236,6 +239,7 @@ class Solver {
     this.avgK = []; this.avgE = []; this.avgFlux = [];
     this.accE = new Float64Array(n / 2 + 2);
     this.accTr = new Float64Array(n / 2 + 2);
+    this.accInj = new Float64Array(n / 2 + 2);
     this.nDiag = 0;
     this.strainAxis = 0;
     this.forceModes = [];
@@ -333,8 +337,26 @@ class Solver {
       wr.set(src);
       for (i = 0; i < nn; i++) wi[i] = 0;
       fft2(wr, wi, tre, tim, pl, false);
+      this.ssr.set(wr); this.ssi.set(wi);           // kept for the injection diagnostic
       for (i = 0; i < nn; i++) if (!mask[i]) { dstRe[i] += wr[i]; dstIm[i] += wi[i]; }
+    } else {
+      this.ssr.fill(0); this.ssi.fill(0);
     }
+  }
+
+  // Cross-check for the injection diagnostic: the per-shell sum must equal the physical
+  // integral of psi*S over the grid (psi = streamfunction, S = the source the scene adds).
+  injectionCheck() {
+    const n = this.n, nn = this.nn, pl = this.pl;
+    const wr = this.wr, wi = this.wi, tre = this.tre, tim = this.tim;
+    for (let i = 0; i < nn; i++) {
+      wr[i] = i === 0 ? 0 : this.sre[i] / this.k2[i];
+      wi[i] = i === 0 ? 0 : this.sim[i] / this.k2[i];
+    }
+    fft2(wr, wi, tre, tim, pl, true);
+    let phys = 0;
+    for (let i = 0; i < nn; i++) phys += wr[i] * this.src[i];
+    return { spectral: this.injTotal, physical: phys / nn };
   }
 
   addDipoles() {
@@ -514,7 +536,8 @@ class Solver {
     fft2(wr, wi, tre, tim, pl, false);
 
     const kmax = n / 2;
-    const e = new Float64Array(kmax + 2), tr = new Float64Array(kmax + 2);
+    const e = new Float64Array(kmax + 2), tr = new Float64Array(kmax + 2), inj = new Float64Array(kmax + 2);
+    const ssr = this.ssr, ssi = this.ssi;
     for (i = 1; i < nn; i++) {
       const b = Math.round(kmag[i]);
       if (b > kmax) continue;
@@ -526,22 +549,34 @@ class Solver {
       const rp1 = us * nr + ui * ni;
       const rp2 = vs * m2r + vi * m2i;
       tr[b] -= (rp1 + rp2);
+      // energy the scene source adds at this shell: Re(conj(psi)*S), psi = -omega/k^2 in 2D
+      const pr2 = i === 0 ? 0 : this.sre[i] / k2[i];
+      const pi2b = i === 0 ? 0 : this.sim[i] / k2[i];
+      inj[b] += (pr2 * s) * (ssr[i] * s) + (pi2b * s) * (ssi[i] * s);   // one s per field: mean over the grid
     }
     const flux = new Float64Array(kmax + 1);
     let acc = 0;
     for (let kb = 1; kb <= kmax; kb++) { acc += tr[kb]; flux[kb] = -acc; }
 
-    this.shellK = []; this.shellE = []; this.shellFlux = [];
-    for (let kb = 1; kb <= kmax; kb++) { this.shellK.push(kb); this.shellE.push(e[kb]); this.shellFlux.push(flux[kb]); }
+    this.shellK = []; this.shellE = []; this.shellFlux = []; this.shellInj = [];
+    let injTot = 0;
+    for (let kb = 1; kb <= kmax; kb++) {
+      this.shellK.push(kb); this.shellE.push(e[kb]); this.shellFlux.push(flux[kb]);
+      this.shellInj.push(inj[kb]); injTot += inj[kb];
+    }
+    this.injTotal = injTot;
 
-    for (let kb = 1; kb <= kmax; kb++) { this.accE[kb] += e[kb]; this.accTr[kb] += tr[kb]; }
+    for (let kb = 1; kb <= kmax; kb++) { this.accE[kb] += e[kb]; this.accTr[kb] += tr[kb]; this.accInj[kb] += inj[kb]; }
     this.nDiag++;
     const inv = 1 / this.nDiag;
     let a2 = 0;
     const af = [];
     for (let kb = 1; kb <= kmax; kb++) { a2 += this.accTr[kb] * inv; af.push(-a2); }
-    this.avgK = []; this.avgE = []; this.avgFlux = [];
-    for (let kb = 1; kb <= kmax; kb++) { this.avgK.push(kb); this.avgE.push(this.accE[kb] * inv); this.avgFlux.push(af[kb - 1]); }
+    this.avgK = []; this.avgE = []; this.avgFlux = []; this.avgInj = []; this.avgInjTotal = 0;
+    for (let kb = 1; kb <= kmax; kb++) {
+      this.avgK.push(kb); this.avgE.push(this.accE[kb] * inv); this.avgFlux.push(af[kb - 1]);
+      this.avgInj.push(this.accInj[kb] * inv); this.avgInjTotal += this.accInj[kb] * inv;
+    }
   }
 
   resetAverage() { this.accE.fill(0); this.accTr.fill(0); this.nDiag = 0; }
@@ -633,7 +668,7 @@ const N = {};
 N.display = "<p>The image is the <em>vorticity</em> field w = curl(u) of a genuine 2D incompressible flow on a periodic box. Bright blue = clockwise spin, bright orange = counter-clockwise, and black = little rotation. Hue carries the sign, brightness carries the strength, so zero vorticity recedes into the dark background and only structure shows. Bright filaments are shear layers; round blobs are vortices. There is no third dimension - every eddy is a vertical column seen from above.</p>";
 N.dyeDisplay = "<p>The image is a passive scalar (dye) carried by the flow: blue = one fluid, pale yellow = the other, with a sharp interface across the middle. The flow does not create or destroy dye, it only stirs it, so the picture shows exactly where mixing has happened. Once the interface breaks into filaments the fluids are mixed.</p>";
 N.cascades = "<h2>The two cascades</h2><p>3D turbulence breaks big eddies into smaller ones until viscosity turns the motion into heat: a forward cascade. 2D turbulence is different - enstrophy still goes forward, but <em>energy cascades backward</em>, climbing to the largest scales in the box (Kraichnan and Batchelor). That inverse cascade is what feeds Jupiter's Great Red Spot from the small eddies around its rim.</p><p><em>Big whorls have little whorls<br>Which feed on their velocity,<br>And little whorls have lesser whorls<br>And so on to viscosity.</em><br>- L. F. Richardson, 1922, on the three-dimensional case. Two dimensions keeps only half of it: enstrophy (vorticity squared) still runs downhill, while energy runs uphill - the Kraichnan-Batchelor result of the late 1960s, and the reason a 2D flow piles up in the largest eddies it can reach instead of turning into heat.</p><p>Pi(k) = -sum over q&lt;=k of T(q), where T is the transfer spectrum of the advective term:<br>Pi &lt; 0 -&gt; energy moving to LARGER scales (inverse)<br>Pi &gt; 0 -&gt; energy moving to SMALLER scales (forward)<br>Below the peak you should see Pi negative; above it, positive.</p>";
-N.plots = "<h2>Reading the plots</h2><p>E(k) is energy per wavenumber, log-log. Wavenumber is inverse length, so small k = big structures. The peak sits at the forcing wavenumber kf. Straight stretches on a log-log plot are power laws; treat the slope as illustrative at this resolution.</p><p>Both curves are time-averaged: the instantaneous flux is very noisy. Use Restart scene after changing anything dramatic.</p>";
+N.plots = "<h2>Reading the plots</h2><p>E(k) is energy per wavenumber, log-log. Wavenumber is inverse length, so small k = big structures. The peak sits at the forcing wavenumber kf. Straight stretches on a log-log plot are power laws; treat the slope as illustrative at this resolution.</p><p>Both curves are time-averaged: the instantaneous flux is very noisy. Use Restart scene after changing anything dramatic.</p><p>The amber plot is the <em>source injection</em>: for each shell, Re(conj(psi)S) - how much energy the scene's own forcing (the dipole, the band drive) adds at that wavenumber, positive where it feeds that scale. It is the local quantity the paper's claim is written about, and it is neither Pi(k) nor the same size, so it has its own axis.</p>";
 N.rodRule = "<h2>The 45-degree rule</h2><p>Green line = direction of maximum stretching, the principal axis of the strain-rate tensor S = (grad u + grad u^T)/2. Grey lines = the two 45-degree boundaries. Orange = the rod, modelled as the exact stresslet (force dipole) the researchers used. The readout gives theta between the rod and the stretching axis.</p><p>Why 45 degrees and not some other angle: a force dipole is a symmetric, traceless tensor, and contracting it with the strain-rate tensor gives a scalar proportional to cos(2*theta). That is zero at 45 degrees and changes sign across it, so which side of the boundary the rod sits on decides the direction of the flux - and beside the boundary the two contributions cancel, which is why the experiment was repeated many times rather than run once.</p>";
 N.rodCaveat = "<h2>Caveat, with measurements</h2><p>This scene does <em>not</em> reproduce the paper's clean 45-degree flux reversal. Two things stop it, both measured.</p><p>First, the default rod position sits in a strain <em>node</em>: |S| = 0.067 at (pi,pi) against 12.0 at (pi,pi/2) - a factor of 180 - so 'the direction of maximum stretching' is meaningless there. The Aligned/Across presets move the rod to where the strain actually is.</p><p>Second, and deeper: placed correctly in a steady imposed shear (ambient axis a clean 45.00 deg, rod-off flux ~1e-17, so the rod is the only source), the rod's own stresslet still dominates the local strain, and unless viscosity is high enough for the rod's scale to equilibrate the flux is not stationary - successive 320-step windows flip sign and vary 16x. In the stationary regime the flux varies smoothly by 22x with the rod's <em>absolute</em> angle but never changes sign, and two orientations that pure-shear symmetry says must be equivalent differ by 22x. The stresslet-strain coupling predicts zero at both 0 and 90 deg, yet those differ 22x - so the effect here is not the alignment mechanism the paper reports.</p><p>What this failure does not mean: that the effect is not there. Outside collaborators' numerical simulations (De Lillo and Boffetta, run for the 2025 follow-up with rods) recovered it, so the disagreement is with this box, this dipole and this viscosity, not with the physics.</p><p><small>Source: X. Si and L. Fang, <em>PNAS Nexus</em> 3(2), pgae056, 2024 (<a href=\"https://doi.org/10.1093/pnasnexus/pgae056\">doi</a>, preprint <a href=\"https://arxiv.org/abs/2310.03226\">arXiv:2310.03226</a>); popular account: <a href=\"https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/\">Quanta, 2 Oct 2026</a>.</small></p>";
 N.swim = "<h2>Active matter</h2><p>Each tick is one brine-shrimp analogue - a small force dipole that pushes fluid one way at its head and the opposite way at its tail, so it swims. They are advected by the flow, rotate with the local vorticity, and wander a little on their own.</p><p>The question the paper starts from: in a large body of water, do billions of tiny swimmers matter for mixing? Turn the swarm on and watch the small-scale structure thicken. With forcing at 0 the flow is driven entirely by them. For the animals themselves, open <a href=\"brine-shrimp.html\">brine-shrimp.html</a>.</p>";
@@ -746,12 +781,13 @@ function setSize() {
 window.addEventListener("resize", setSize);
 
 function fitPlots() {
-  for (const id of ["plotFlux", "plotE"]) {
+  for (const id of ["plotFlux", "plotE", "plotInj"]) {
     const c = $(id);
     const w = c.clientWidth || 270;
     c.width = Math.round(w * DPR);
     c.height = Math.round(92 * DPR);
   }
+  drawPlots();
 }
 
 // ------------------------------------------------------------------ knobs
@@ -1142,12 +1178,13 @@ function drawOverlay(x0, y0, side) {
   }
 }
 
-function plot(id, xs, ys, xlog, ylog, color, zero) {
+function plot(id, xs, ys, xlog, ylog, color, zero, ys2 = null, color2 = null) {
   const c = $(id), g = c.getContext("2d");
   const W = c.width, H = c.height;
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = "#0b1a28"; g.fillRect(0, 0, W, H);
-  if (!xs.length) return;
+  if (!xs || !xs.length || !ys || !ys.length) return;   // a series that is not filled yet must not throw
+  // inside the frame loop - that would stop rendering for good
   const xf = v => xlog ? Math.log(Math.max(v, 1e-9)) : v;
   const yf = v => ylog ? Math.log(Math.max(v, 1e-30)) : v;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -1156,6 +1193,12 @@ function plot(id, xs, ys, xlog, ylog, color, zero) {
     if (!isFinite(a) || !isFinite(b)) continue;
     if (a < x0) x0 = a; if (a > x1) x1 = a;
     if (b < y0) y0 = b; if (b > y1) y1 = b;
+    // a second series shares the frame, so the range has to cover it too - otherwise the curve
+    // is clipped against a scale set by the first one
+    if (ys2) {
+      const c = yf(ys2[i]);
+      if (isFinite(c)) { if (c < y0) y0 = c; if (c > y1) y1 = c; }
+    }
   }
   if (!isFinite(x0) || x1 <= x0 || y1 <= y0) return;
   const mx = v => 4 + (v - x0) / (x1 - x0) * (W - 8);
@@ -1164,15 +1207,34 @@ function plot(id, xs, ys, xlog, ylog, color, zero) {
     g.strokeStyle = "rgba(90,90,100,0.8)"; g.lineWidth = 1 * DPR;
     g.beginPath(); g.moveTo(0, my(0)); g.lineTo(W, my(0)); g.stroke();
   }
-  g.strokeStyle = color; g.lineWidth = 1.6 * DPR;
-  g.beginPath();
-  let started = false;
-  for (let i = 0; i < xs.length; i++) {
-    const a = xf(xs[i]), b = yf(ys[i]);
-    if (!isFinite(a) || !isFinite(b)) continue;
-    if (!started) { g.moveTo(mx(a), my(b)); started = true; } else g.lineTo(mx(a), my(b));
-  }
-  g.stroke();
+  const stroke = (data, col) => {
+    if (!data) return;
+    g.strokeStyle = col; g.lineWidth = 1.6 * DPR;
+    g.beginPath();
+    let started = false;
+    for (let i = 0; i < xs.length; i++) {
+      const a = xf(xs[i]), b = yf(data[i]);
+      if (!isFinite(a) || !isFinite(b)) continue;
+      if (!started) { g.moveTo(mx(a), my(b)); started = true; } else g.lineTo(mx(a), my(b));
+    }
+    g.stroke();
+  };
+  stroke(ys, color);
+  if (ys2 && color2) stroke(ys2, color2);
+}
+
+// The three panels. Called from the statistics tick and from setSize, because assigning a canvas's
+// width clears its bitmap: a window resize would otherwise blank the plots until the next tick.
+function drawPlots() {
+  // setSize() runs before the solver exists, and `typeof solver` is not a safe test for a `let` in its
+  // temporal dead zone - that throws. A try/catch is the honest guard here.
+  let S;
+  try { S = solver; } catch (e) { return; }
+  if (!S || !S.avgK || !S.avgK.length) return;
+  plot("plotFlux", S.avgK, S.avgFlux, true, false, "rgba(120,220,160,0.95)", true);
+  plot("plotInj", S.avgK, S.avgInj, true, false, "rgba(255,170,80,0.95)", true);
+  plot("plotE", S.avgK, S.avgE, true, true, "rgba(220,190,120,0.95)", false);
+
 }
 
 // -------------------------------------------------------------------- loop
@@ -1196,14 +1258,18 @@ function frame(t) {
   if (statAcc > 0.2) {
     statAcc = 0;
     updateStats();
-    plot("plotFlux", solver.avgK, solver.avgFlux, true, false, "rgba(120,220,160,0.95)", true);
-    plot("plotE", solver.avgK, solver.avgE, true, true, "rgba(220,190,120,0.95)", false);
+    drawPlots();
   }
 }
 
 function updateStats() {
   const deg = a => (a * 180 / Math.PI).toFixed(1);
+  // injection is a small signed number: keep it readable without pretending to more digits than the average has
+  const fmtInj = v => (Math.abs(v) >= 1e-3 ? v.toFixed(3) : v.toExponential(2));
   let extra = "";
+  if (solver && solver.avgInjTotal !== undefined) {
+    extra += `source injection <b>${fmtInj(solver.avgInjTotal)}</b> total - the amber plot shows where it lands\n`;
+  }
   if (scene === "rod") {
     const fold = (a, ref) => { let d = Math.abs((a - ref) % Math.PI); return Math.min(d, Math.PI - d) * 180 / Math.PI; };
     const rodDeg = (solver.dipoles[0].th * 180 / Math.PI).toFixed(0);
@@ -1214,6 +1280,7 @@ function updateStats() {
       // which the rod's own stresslet contaminates.
       const eff = fold(solver.dipoles[0].th, Math.PI / 4);
       extra = `theta vs imposed shear <b>${eff.toFixed(1)} deg</b>  ${verdict(eff)}\n` +
+              `net work on the flow <b>${fmtInj(solver.avgInjTotal)}</b> - direction is in the amber curve, not in this sign\n` +
               `rod <b>${rodDeg} deg</b>   imposed axis <b>45.0 deg</b>\n` +
               `measured axis <b>${deg(solver.strainAxis)} deg</b> (rod-contaminated)\n`;
     } else {
@@ -1259,6 +1326,7 @@ if (warm) { for (let i = 0; i < warm; i++) solver.step(); }
 requestAnimationFrame(frame);
 
 // expose for verification
+
 window.LAB = { get solver() { return solver; }, get scene() { return scene; }, get n() { return n; },
                get renderM() { return targetM; }, get renderField() { return upRe; },
                get synthMax() { return synthMax; }, set synthMax(v) { synthMax = v; targetM = 0; },

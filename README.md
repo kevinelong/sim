@@ -118,6 +118,19 @@ readouts, and the two time-averaged plots. Right panel: the field guide, which
 changes with the scene and explains what you are seeing and what each knob
 illustrates.
 
+## Diagnostics
+
+Three panels, and the third is the one the paper's claim is written about:
+
+- **`Pi(k)`, green** — the global spectral energy flux, time-averaged. The box's cascade in one number.
+- **`E(k)`** — the kinetic-energy spectrum.
+- **source injection `E_inj(k)`, amber** — per shell, `Re(conj(psi)·S)`: how much energy the scene's own forcing (the
+  dipole, the band drive) adds at that wavenumber. This is the local quantity behind "the swimmer feeds this scale or
+  drains it", and it is neither `Pi(k)` nor the same magnitude, so it gets its own axis.
+
+`Solver.injectionCheck()` returns the per-shell sum and the physical `∫psi·S` over the grid; a test asserts they agree to
+1e-6, which is how the `1/n²` normalisation was settled rather than guessed (the first version was off by exactly `n²`).
+
 ## Numerics
 
 - Pseudo-spectral 2D Navier-Stokes in vorticity form, doubly periodic

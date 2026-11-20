@@ -94,6 +94,21 @@ To make the capture show a developed state, `turbulence.html` gained a deep link
 20,000, unknown scene falls back to `cascade`). The 10 node tests still pass; the boot block is outside the sections they
 extract.
 
+## Injection spectrum added (2026-11-19)
+
+The sim now measures the quantity the paper is actually about. New: `E_inj(k)` per shell, from the source spectrum the solver
+already forms - `Re(conj(psi)S)` with `psi = -omega/k^2` - accumulated like `E(k)` and plotted in its own panel, plus a readout
+line giving `avgInjTotal` in every scene. `Solver.injectionCheck()` cross-checks the per-shell sum against `∫psi·S` over the
+grid, and the test caught the scaling being off by exactly `n^2` (one `s` per field, settled at one `s` per field).
+
+Two traps found while wiring it, both now fixed in code: `plot()` cleared and rescaled per call, so a second series had to be
+drawn from one call (or given its own panel - it has its own panel now); and `typeof solver` is not a safe guard before a `let`
+is initialised, so `setSize()`'s early redraw threw and the whole boot stopped. `drawPlots()` now guards with try/catch and is
+called from both the statistics tick and `setSize()`, because assigning a canvas width clears it and a resize was blanking all
+three panels.
+
+Still not built: the θ sweep as a preset (item 3). The predicted curve is already in the rod readout (`verdict(θ)` at 45°).
+
 ## Open items
 
 1. **CLOSED 2026-10-15** - frozen, above.
