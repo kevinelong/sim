@@ -14,6 +14,28 @@
 The two HTML files are a matched pair and cross-link to each other. No
 dependencies, no build step, no server: double-click either one.
 
+## Which paper
+
+The README has said "the same paper" since it was written, and until 2026-11-19 it never said which one - there was no
+title, author, DOI, arXiv id or outbound link anywhere in the repository or its history. Here it is, with the popular
+account of it, because that is where the two HTML views were most plausibly read first:
+
+- **Xinyu Si and Lei Fang**, "Biologically generated turbulent energy flux in shear flow depends on tensor geometry",
+  *PNAS Nexus* **3**(2), pgae056, published 2024-02-08, doi:[10.1093/pnasnexus/pgae056](https://doi.org/10.1093/pnasnexus/pgae056).
+  Preprint: [arXiv:2310.03226](https://arxiv.org/abs/2310.03226), 5 Oct 2023, then titled "... energy **cascade** ...
+  depends on tensor geometry" - the published version says **flux**. The subject is the brine shrimp *Artemia salina*
+  migrating in shear flow, with an artificial-jet analog experiment.
+- **Stephen Ornes**, "Sea Monkeys Show Scientists How To Rewrite a Rule of Turbulence", *Quanta Magazine*, 2 October 2026,
+  [quantamagazine.org](https://www.quantamagazine.org/sea-monkeys-show-scientists-how-to-rewrite-a-rule-of-turbulence-20261002/).
+  "Sea monkeys" is the aquarium-trade name for *Artemia*. If the inspiration was a different write-up - an HN or Reddit
+  post of either, a preprint PDF - correcting this list is one line; nothing below depends on the popular source.
+
+**What this lab takes from it, and what it does not.** Taken: the stresslet as the rod's flow source (the paper's
+swimmer), and the question of whether a biological agent reorders a 2D inverse cascade. Not taken, with the divergence
+**measured** rather than assumed: the paper's 45-degree flux reversal does not reproduce here, for reasons recorded under
+"Known limitations" - the rod default sat in a strain node, the coupling is viscosity-sensitive, and the flux varies 22x
+with the rod's absolute angle without ever changing sign.
+
 ### `src/` is frozen (decided 2026-10-15)
 
 `turbulence.html` is the lab that still moves; the native app is kept as the
