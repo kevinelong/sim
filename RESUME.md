@@ -55,6 +55,20 @@ blue/orange vorticity map, its barrier scene starts with the perturbation OFF
 rod-at-`(pi,pi)` default - inside the strain node the rod caveat describes,
 where the browser lab moved the rod to `(pi,pi/2)`.
 
+## Provenance: the paper is now named (2026-11-19)
+
+Asked whether the repository records which article inspired the project. It did not - no title, author, DOI, arXiv id or
+outbound link in README, this note, either HTML file, src/ or the four-commit history, and the repository was only created
+2026-10-14 from files that already existed. Now recorded in three places: `README.md` (`## Which paper`), the organism view's
+guide paragraph ("The paper: ..."), and the flow view's rod caveat (a `<small>` source line inside the field-guide string, so it
+appears where the paper's claim is measured).
+
+- Si & Fang, *PNAS Nexus* **3**(2) pgae056 (2024-02-08), doi:10.1093/pnasnexus/pgae056; preprint **arXiv:2310.03226**
+  (2023-10-05), titled "... energy *cascade* ..." where the journal says *flux*.
+- Popular account, named as the likely first read: Ornes, *Quanta*, "Sea Monkeys Show Scientists How To Rewrite a Rule of
+  Turbulence", **2026-10-02** - 12 days before these HTML files, which is the whole of the evidence for it being the source.
+  If it was a different write-up, that one line is corrected and nothing else changes.
+
 ## Open items
 
 1. **CLOSED 2026-10-15** - frozen, above.
